@@ -1,0 +1,23 @@
+Personas: 38
+Elusion 1 contra 1 de frente: en cada prueba una persona sale de la fila izquierda y otra de la fila derecha (abajo a la derecha) y se cruzan por y ~ 2 m. Pareja = la que pasa mas cerca (asignacion 1 a 1).
+Pruebas/pasadas: 19
+  prueba   1: sale izquierda   3, sale derecha  36, cuadros 20068-20261, distancia minima 0.91 m
+  prueba   2: sale izquierda  V?, sale derecha  25, cuadros 20208-20391, distancia minima 0.88 m
+  prueba   3: sale izquierda  43, sale derecha   1, cuadros 20370-20540, distancia minima 0.6 m
+  prueba   4: sale izquierda  10, sale derecha   5, cuadros 20527-20734, distancia minima 0.54 m
+  prueba   5: sale izquierda   4, sale derecha  12, cuadros 20632-20853, distancia minima 0.49 m
+  prueba   6: sale izquierda   9, sale derecha   6, cuadros 20778-20971, distancia minima 0.8 m
+  prueba   7: sale izquierda  20, sale derecha  44, cuadros 20910-21142, distancia minima 0.56 m
+  prueba   8: sale izquierda  27, sale derecha  37, cuadros 21066-21298, distancia minima 0.83 m
+  prueba   9: sale izquierda  16, sale derecha  39, cuadros 21228-21380, distancia minima 0.78 m
+  prueba  10: sale izquierda  17, sale derecha  42, cuadros 21435-21635, distancia minima 0.63 m
+  prueba  11: sale izquierda  23, sale derecha  24, cuadros 21536-21804, distancia minima 0.91 m
+  prueba  12: sale izquierda  22, sale derecha  18, cuadros 21760-21960, distancia minima 0.64 m
+  prueba  13: sale izquierda  15, sale derecha  35, cuadros 21877-22098, distancia minima 0.87 m
+  prueba  14: sale izquierda  30, sale derecha  28, cuadros 22011-22206, distancia minima 0.92 m
+  prueba  15: sale izquierda  46, sale derecha  34, cuadros 22278-22481, distancia minima 0.76 m
+  prueba  16: sale izquierda  47, sale derecha  48, cuadros 22402-22639, distancia minima 0.68 m
+  prueba  17: sale izquierda   2, sale derecha  45, cuadros 22561-22726, distancia minima 0.57 m
+  prueba  18: sale izquierda  26, sale derecha  21, cuadros 22722-23000, distancia minima 0.57 m
+  prueba  19: sale izquierda  29, sale derecha  38, cuadros 22902-23074, distancia minima 0.61 m
+
