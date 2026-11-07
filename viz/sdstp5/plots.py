@@ -7,6 +7,7 @@ import matplotlib
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+import matplotlib.ticker
 import numpy as np
 
 from .observables import sim_at_experimental_frames
@@ -80,7 +81,13 @@ def cuts(pop, opt, out: Path, baseline=None):
         ax.axvline(o["p1"], color="k", ls=":", lw=1)
         if baseline is not None:
             ax.axhline(baseline[m], color="gray", ls="--", lw=1, label="sin elusión (referencia)")
-        ax.set_xlabel(P1L)
+        # p1 en escala logaritmica (la grilla de p1 es mas densa para valores chicos); p2 queda lineal
+        ax.set_xscale("log")
+        ticks = [0.25, 0.5, 1, 2, 4, 8]
+        ax.set_xticks(ticks)
+        ax.set_xticklabels([f"{t:g}" for t in ticks])
+        ax.xaxis.set_minor_formatter(matplotlib.ticker.NullFormatter())
+        ax.set_xlabel(P1L + " (escala log)")
         ax.set_ylabel(LABEL[m])
         ax.set_title(f"{NAME[m]}: corte en p1")
         ax.legend(loc="best")
@@ -152,8 +159,8 @@ def cv_plot(cv, cvs, out: Path):
     fig, axs = plt.subplots(1, 2, figsize=(11, 4.4))
     for ax, m in zip(axs, ("E1", "E2")):
         d = cv[cv.metric == m]
-        bp = ax.boxplot([d.E_train, d.E_validation, d.E_validation_with_population_params], patch_artist=True)
-        ax.set_xticks([1, 2, 3], ["entrenamiento\n(calibrado ahí)", "validación\n(calibrado en entren.)", "validación con\nparám. de (b)"])
+        bp = ax.boxplot([d.E_train, d.E_validation], patch_artist=True)
+        ax.set_xticks([1, 2], ["entrenamiento\n(calibrado ahí)", "validación\n(calibrado en entren.)"])
         for p in bp["boxes"]:
             p.set_facecolor(C[m])
             p.set_alpha(0.5)
@@ -161,7 +168,7 @@ def cv_plot(cv, cvs, out: Path):
         ax.axhline(v, color="k", ls="--", lw=1, label=f"⟨E⟩ poblacional (b) = {v:.3f}")
         ax.set_ylabel("error medio [m²]")
         ax.set_title(f"{NAME[m]} ({len(d)} particiones)")
-        ax.legend()
+        ax.legend(loc="upper left")
     fig.tight_layout()
     _save(fig, out, "validacion_cruzada")
 
