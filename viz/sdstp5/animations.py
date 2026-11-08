@@ -20,7 +20,10 @@ def animate_event(event, run, out_file: Path, radius=0.25, fmt="mp4"):
     out_file = Path(out_file)
     out_file.parent.mkdir(parents=True, exist_ok=True)
     ids = list(event.agents)
-    frames = np.arange(event.start_frame, event.end_frame + 1)
+    # la corrida puede extenderse DESPUES del ultimo instante experimental (hasta que ambos llegan al target + espera):
+    # en esos cuadros el dato experimental queda en su ultima posicion
+    last_frame = int(max(event.end_frame, np.floor(max(run.agents[a].frame[-1] for a in ids) + 1e-6)))
+    frames = np.arange(event.start_frame, last_frame + 1)
     sim_idx = {}
     for aid in ids:
         sm = run.agents[aid]
@@ -61,11 +64,11 @@ def animate_event(event, run, out_file: Path, radius=0.25, fmt="mp4"):
             circles[k].set_edgecolor("red" if avoid else COL[k][0])
             trails_s[k].set_data(sm.x[: j + 1], sm.y[: j + 1])
             m = ex.frame <= f
-            have = np.where(ex.frame == f)[0]
+            have = np.where(ex.frame == f)[0] if f <= event.end_frame else [len(ex.x) - 1]
             exp_pts[k].set_data(ex.x[have], ex.y[have])
             trails_e[k].set_data(ex.x[m], ex.y[m])
         title.set_text(f"Evento {event.event_id}  t = {(f - event.start_frame) / fps:5.2f} s   "
-                       f"p1 = {run.p1:g} s, p2 = {run.p2:g} m   (borde rojo = target temporal activo)")
+                       f"A = {run.A:g} m, λ = {run.lam:g} m   (borde rojo = elusión activa)")
         return circles + exp_pts + trails_s + trails_e + [title]
 
     anim = animation.FuncAnimation(fig, update, frames=len(frames), interval=1000 / fps, blit=False)

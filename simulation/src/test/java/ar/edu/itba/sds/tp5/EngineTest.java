@@ -4,6 +4,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 import ar.edu.itba.sds.tp5.cli.Main;
 import ar.edu.itba.sds.tp5.config.SimulationConfig;
@@ -26,9 +27,9 @@ public class EngineTest {
     @Rule
     public TemporaryFolder tmp = new TemporaryFolder();
 
-    private SimulationConfig cfg(Path root, double p1, double p2) {
+    private SimulationConfig cfg(Path root, double amplitude, double lambda) {
         return SimulationConfig.fromMap(SimulationConfig.parseTxt(
-            "eventId = 1\np1 = " + p1 + "\np2 = " + p2 + "\ndt = 0.0005\noutputPerFrame = 3\n"
+            "eventId = 1\namplitude = " + amplitude + "\nlambda = " + lambda + "\ndt = 0.0005\noutputPerFrame = 3\n"
                 + "dataPath = docs/data.txt\nreadmePath = docs/leeme.txt\noutputDir = output\n"));
     }
 
@@ -141,7 +142,7 @@ public class EngineTest {
         assertEquals("cached", RunExecutor.execute(c, ctx, false).status);
         Path f = ctx.resolve(o1.relPath);
         assertTrue(TextOutputWriter.isComplete(f));
-        // distinto p1 / p2 / dt -> otro id; mismo config -> mismo id
+        // distinto A / lambda / dt -> otro id; mismo config -> mismo id
         assertNotEquals(o1.runId, RunExecutor.execute(cfg(root, 3.5, 0.7), ctx, true).runId);
         assertNotEquals(o1.runId, RunExecutor.execute(cfg(root, 3.0, 0.75), ctx, true).runId);
         assertEquals(o1.runId, RunExecutor.execute(cfg(root, 3.0, 0.7), ctx, true).runId);
@@ -170,5 +171,81 @@ public class EngineTest {
         assertTrue(Files.isRegularFile(root.resolve("output/manifest.tsv")));
         Files.delete(root.resolve("docs/data.txt"));
         assertEquals(2, Main.run(new String[] {"run", "--config", cfgFile.toString(), "--root", root.toString()}));
+    }
+
+    @Test
+    public void cleanWindowRestrictsTheEventAndChangesRunId() throws Exception {
+        Path root = tmp.getRoot().toPath();
+        TestSupport.writeHeadOn(root, 2.0, 2.05, 1.0, false);   // LEEME: cuadros 100-250
+        Files.createDirectories(root.resolve("input"));
+        Files.write(root.resolve("input/w.json"),
+            "{\"windows\": {\"1\": {\"startFrame\": 130, \"endFrame\": 200, \"note\": \"x\"}}}".getBytes(StandardCharsets.UTF_8));
+        SimulationConfig plain = cfg(root, 1.0, 1.0);
+        SimulationConfig win = SimulationConfig.fromMap(SimulationConfig.parseTxt(
+            "eventId = 1\namplitude = 1.0\nlambda = 1.0\ndt = 0.0005\noutputPerFrame = 3\n"
+                + "dataPath = docs/data.txt\nreadmePath = docs/leeme.txt\noutputDir = output\nwindowsPath = input/w.json\n"));
+        ExperimentContext c0 = new ExperimentContext(root, plain);
+        ExperimentContext c1 = new ExperimentContext(root, win);
+        Event e0 = c0.event(plain);
+        Event e1 = c1.event(win);
+        assertEquals(100, e0.startFrame);
+        assertEquals(130, e1.startFrame);
+        assertEquals(200, e1.endFrame);
+        // el estado inicial y el target salen de la ventana limpia
+        assertEquals(e1.left.x0, 0.5 + 1.0 * 30 / TestSupport.FPS, 1e-4);
+        assertEquals(e1.left.targetX, 0.5 + 1.0 * 100 / TestSupport.FPS, 1e-4);
+        assertNotEquals(RunExecutor.execute(plain, c0, true).runId, RunExecutor.execute(win, c1, true).runId);
+        // ventana fuera del LEEME: error claro
+        Files.write(root.resolve("input/w.json"),
+            "{\"windows\": {\"1\": {\"startFrame\": 50, \"endFrame\": 200}}}".getBytes(StandardCharsets.UTF_8));
+        try {
+            new ExperimentContext(root, win).event(win);
+            fail();
+        } catch (SimulationConfig.ConfigException e) {
+            assertTrue(e.getMessage().contains("ventana"));
+        }
+    }
+
+    @Test
+    public void avoidanceDisabledGivesFreeSfmReference() throws Exception {
+        Path root = tmp.getRoot().toPath();
+        TestSupport.writeHeadOn(root, 2.0, 2.0, 1.0, false);
+        SimulationConfig off = SimulationConfig.fromMap(SimulationConfig.parseTxt(
+            "eventId = 1\namplitude = 1.0\nlambda = 1.0\ndt = 0.0005\noutputPerFrame = 3\navoidance.enabled = false\n"
+                + "dataPath = docs/data.txt\nreadmePath = docs/leeme.txt\noutputDir = output\n"));
+        ExperimentContext ctx = new ExperimentContext(root, off);
+        SimulationEngine.Result res = SimulationEngine.run(off, ctx.event(off), new Rec());
+        assertEquals(0.0, res.fractionTimeAvoiding, 0);
+        assertNotEquals(RunExecutor.execute(off, ctx, true).runId, RunExecutor.execute(cfg(root, 1.0, 1.0), ctx, true).runId);
+    }
+
+    @Test
+    public void postEventExtensionRunsUntilArrivalPlusHoldAndLeavesMetricsRunUntouched() throws Exception {
+        Path root = tmp.getRoot().toPath();
+        TestSupport.writeHeadOn(root, 2.0, 2.05, 1.0, false);
+        SimulationConfig plain = cfg(root, 0.3, 3.0);
+        SimulationConfig ext = SimulationConfig.fromMap(SimulationConfig.parseTxt(
+            "eventId = 1\namplitude = 0.3\nlambda = 3.0\ndt = 0.0005\noutputPerFrame = 3\n"
+                + "dataPath = docs/data.txt\nreadmePath = docs/leeme.txt\noutputDir = output\n"
+                + "animation.extendUntilArrival = true\nanimation.holdSeconds = 2.0\n"));
+        ExperimentContext ctx = new ExperimentContext(root, plain);
+        Event ev = ctx.event(plain);
+        Rec r0 = new Rec();
+        SimulationEngine.Result res0 = SimulationEngine.run(plain, ev, r0);
+        Rec r1 = new Rec();
+        SimulationEngine.Result res1 = SimulationEngine.run(ext, ev, r1);
+        assertEquals(ev.duration(), res0.durationS, 1e-9);                 // sin extension: termina en el ultimo instante experimental
+        assertTrue(res1.durationS >= res0.durationS + 2.0 - 1e-6);          // con extension: al menos la espera de 2 s
+        // la parte comun es identica bit a bit (la extension no altera la dinamica del evento)
+        for (int i = 0; i < r0.rows.size(); i++) {
+            assertArrayEqualsExact(r0.rows.get(i), r1.rows.get(i));
+        }
+        // al final ambos agentes estan en su target y quietos
+        double[] a = r1.rows.get(r1.rows.size() - 2);
+        double[] b = r1.rows.get(r1.rows.size() - 1);
+        assertEquals(ev.left.targetX, a[3], 0.03);
+        assertEquals(ev.right.targetX, b[3], 0.03);
+        assertTrue(Math.hypot(a[5], a[6]) < 0.05 && Math.hypot(b[5], b[6]) < 0.05);
+        assertNotEquals(RunExecutor.execute(plain, ctx, true).runId, RunExecutor.execute(ext, ctx, true).runId);
     }
 }

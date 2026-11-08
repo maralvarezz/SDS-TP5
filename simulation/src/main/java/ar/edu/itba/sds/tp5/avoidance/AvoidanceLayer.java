@@ -3,142 +3,127 @@ package ar.edu.itba.sds.tp5.avoidance;
 import ar.edu.itba.sds.tp5.model.Agent;
 
 /**
- * Capa de elusion (Problema 1). Dos parametros ajustables:
- *   p1 = T  : horizonte de anticipacion [s]
- *   p2 = D  : distancia de paso de seguridad centro-a-centro [m]
+ * Capa de elusion CONTINUA (Problema 1). Exactamente dos parametros calibrables:
+ *   A      = amplitud de elusion [m]     (escala maxima del desplazamiento lateral del target temporal)
+ *   lambda = alcance espacial [m]        (a que distancia se "siente" al otro peaton)
  *
- * Actua UNICAMENTE reemplazando el target final por un target temporal (cambia la direccion de la
- * velocidad deseada); no agrega fuerzas ni toca las reglas del SFM. Para el agente i y otro agente j:
+ * Actua UNICAMENTE reemplazando el target final por un target temporal (cambia la direccion de la velocidad
+ * deseada); no agrega fuerzas ni toca las reglas del SFM ni el modulo de la velocidad deseada.
  *
- *  1. Para una direccion candidata u = vd_i * e, la posicion relativa de j es  s(t) = dr + (v_j - u) t,
- *     con dr = r_j - r_i. Si el movimiento relativo es de acercamiento (t* = -dr.w/|w|^2 > 0, w = v_j - u),
- *     la distancia minima prevista en [0, T] es  d(u) = |dr + w min(t*, T)|.
- *     Hay CONFLICTO si d(u) < D. (Si se alejan, t* <= 0, no hay conflicto.)
- *  2. Si no hay conflicto con e_f (direccion al target final) -> sin target temporal.
- *  3. Si lo hay, se busca el menor giro |theta| (en pasos de angleStep, alternando lados) de e_f tal que la
- *     direccion rotada R(theta) e_f NO tenga conflicto. A igual |theta| se prefiere el lado opuesto a j
- *     (j a la izquierda de e_f -> giro horario); si j esta alineado, horario ("keep right").
- *  4. Target temporal:  P_t = r_i + L R(theta) e_f,  con L = |P_final - r_i|; el SFM apunta e hacia P_t.
- *  5. La condicion se reevalua cada 'updateDt'. Cuando e_f deja de tener conflicto (theta = 0)
- *     el agente retoma su target final. theta(t) es continuo en el borde del conflicto, sin umbrales
- *     adicionales, por lo que no hay oscilacion conectado/desconectado.
+ * Para el agente i y el otro peaton j, con d = |r_j - r_i| (distancia ACTUAL entre centros):
  *
- * Si ninguna direccion resuelve el conflicto se elige la de mayor distancia minima prevista.
- * Con mas de un vecino se resuelve el giro mas chico que satisface a TODOS (aqui el evento tiene un solo vecino).
+ *     a(d)    = A exp(-d / lambda)                       (offset lateral del target; NO es una separacion garantizada)
+ *     P_temp  = r_i + L0 e_f + a(d) w(s) n               e_f = direccion unitaria al target final
+ *                                                        n   = (e_y, -e_x) = derecha propia respecto del avance
+ *                                                        w(s)= peso de "encuentro vigente" (ver abajo)
+ *
+ * No hay umbral binario de conflicto: para todo d finito y A > 0 el offset es positivo y varia de forma continua.
+ * El angulo de desvio resultante es |theta| = atan( a w / L0 ).
+ *
+ * Constantes de DISENO (fijas, documentadas, NO calibrables; idénticas en todos los experimentos):
+ *   L0       = 1.0 m : punto de avance sobre e_f. Es del orden de un paso largo; con A hasta ~2 m el giro maximo
+ *                      es ~63 grados. Se usa un valor fijo (y no la distancia restante a la meta) para que el
+ *                      angulo no dependa de cuanto falta para llegar.
+ *   ELL      = L0    : longitud de la transicion de "encuentro terminado" (ver w(s)). Reusa L0 para no introducir
+ *                      otra escala.
+ *
+ * Fin del encuentro (w): s = (r_j - r_i) . e_f es la proyeccion longitudinal del otro respecto del avance.
+ *   s >= 0       -> el otro esta adelante: w = 1 (se conserva exactamente a(d) = A exp(-d/lambda)).
+ *   -ELL < s < 0 -> el otro ya paso: w baja suavemente a 0 con smoothstep u^2 (3 - 2u), u = 1 + s/ELL
+ *                   (continua y con derivada nula en s = 0 y s = -ELL, sin saltos de direccion).
+ *   s <= -ELL    -> encuentro terminado: w = 0, el agente vuelve a apuntar al target final.
+ * Es una regla geometrica determinista, sin parametros adicionales a calibrar.
+ *
+ * Con mas de un vecino se usa el de mayor offset efectivo a(d) w(s). Casos limite (sin vecino, d = 0, estados no
+ * finitos, llegada al destino) no producen NaN/Infinity.
  */
 public final class AvoidanceLayer {
-    private final double horizon;
-    private final double clearance;
-    private final double stepRad;
+    /** Punto de avance fijo sobre la direccion al destino [m] (constante de diseno, no calibrable). */
+    public static final double LOOKAHEAD_L0 = 1.0;
+    /** Longitud de la transicion de fin de encuentro [m] (constante de diseno, no calibrable). */
+    public static final double TRANSITION_LENGTH = LOOKAHEAD_L0;
 
-    public AvoidanceLayer(double p1Horizon, double p2Clearance, double angleStepDeg) {
-        this.horizon = p1Horizon;
-        this.clearance = p2Clearance;
-        this.stepRad = Math.toRadians(angleStepDeg);
+    private final double amplitude;
+    private final double spatialRange;
+
+    public AvoidanceLayer(double amplitude, double spatialRange) {
+        if (!(Double.isFinite(amplitude) && amplitude > 0)) {
+            throw new IllegalArgumentException("amplitude (A) debe ser finita y > 0: " + amplitude);
+        }
+        if (!(Double.isFinite(spatialRange) && spatialRange > 0)) {
+            throw new IllegalArgumentException("spatialRange (lambda) debe ser finito y > 0: " + spatialRange);
+        }
+        this.amplitude = amplitude;
+        this.spatialRange = spatialRange;
     }
 
-    /** Distancia minima prevista en [0,T] si hay acercamiento; +inf si se alejan o no hay movimiento relativo. */
-    double predictedClearance(double dx, double dy, double wx, double wy) {
-        double w2 = wx * wx + wy * wy;
-        if (w2 < 1e-12) {
-            return Double.POSITIVE_INFINITY;
+    /** Offset base a(d) = A exp(-d / lambda), sin la logica de encuentro. */
+    public double offset(double distance) {
+        if (!Double.isFinite(distance) || distance < 0) {
+            return 0.0;
         }
-        double tc = -(dx * wx + dy * wy) / w2;
-        if (tc <= 0) {
-            return Double.POSITIVE_INFINITY;
-        }
-        if (tc > horizon) {
-            tc = horizon;
-        }
-        return Math.hypot(dx + wx * tc, dy + wy * tc);
+        return amplitude * Math.exp(-distance / spatialRange);
     }
 
     /**
-     * Actualiza el target temporal de {@code self} frente a {@code others} (estado actual, vecinos suponen velocidad constante).
+     * Peso de encuentro vigente w(s) en [0, 1], continuo en s. Recibe la proyeccion longitudinal s del otro agente
+     * sobre la direccion de avance.
      */
+    public static double encounterWeight(double s) {
+        if (!Double.isFinite(s) || s >= 0) {
+            return Double.isFinite(s) ? 1.0 : 0.0;
+        }
+        if (s <= -TRANSITION_LENGTH) {
+            return 0.0;
+        }
+        double u = 1.0 + s / TRANSITION_LENGTH;
+        return u * u * (3.0 - 2.0 * u);
+    }
+
+    /** Actualiza el target temporal de {@code self} frente a {@code others} (estado actual). */
     public void update(Agent self, Agent[] others, double arrivalTol) {
         double fx = self.finalX - self.x;
         double fy = self.finalY - self.y;
-        double L = Math.hypot(fx, fy);
-        if (L <= arrivalTol || L == 0) {
+        double remaining = Math.hypot(fx, fy);
+        if (!Double.isFinite(remaining) || remaining <= arrivalTol || remaining == 0) {
             clear(self);
             return;
         }
-        double ex = fx / L;
-        double ey = fy / L;
-        if (!conflict(self, others, ex, ey)) {
-            clear(self);
-            return;
-        }
-        double best = Double.NaN;
-        boolean found = false;
-        double fallbackTheta = 0;
-        double fallbackScore = -1;
-        int nMax = (int) Math.floor(Math.PI / stepRad);
-        double pref = preferredSign(self, others, ex, ey);
-        for (int k = 1; k <= nMax && !found; k++) {
-            for (int s = 0; s < 2 && !found; s++) {
-                double th = (s == 0 ? pref : -pref) * k * stepRad;
-                double c = Math.cos(th);
-                double sn = Math.sin(th);
-                double cx = c * ex - sn * ey;
-                double cy = sn * ex + c * ey;
-                double score = minClearance(self, others, cx, cy);
-                if (score >= clearance) {
-                    best = th;
-                    found = true;
-                } else if (score > fallbackScore) {
-                    fallbackScore = score;
-                    fallbackTheta = th;
-                }
+        double ex = fx / remaining;
+        double ey = fy / remaining;
+
+        double best = 0.0;
+        for (Agent o : others) {
+            if (o == self) {
+                continue;
+            }
+            double dx = o.x - self.x;
+            double dy = o.y - self.y;
+            double d = Math.hypot(dx, dy);
+            if (!Double.isFinite(d)) {
+                continue;
+            }
+            double a = offset(d) * encounterWeight(dx * ex + dy * ey);
+            if (a > best) {
+                best = a;
             }
         }
-        double theta = found ? best : fallbackTheta;
-        double c = Math.cos(theta);
-        double sn = Math.sin(theta);
-        self.theta = theta;
+        if (best <= 0.0) {
+            clear(self);
+            return;
+        }
+        // derecha propia respecto del avance: n = (e_y, -e_x)
+        double nx = ey;
+        double ny = -ex;
+        self.tempX = self.x + LOOKAHEAD_L0 * ex + best * nx;
+        self.tempY = self.y + LOOKAHEAD_L0 * ey + best * ny;
         self.hasTemporalTarget = true;
-        self.tempX = self.x + L * (c * ex - sn * ey);
-        self.tempY = self.y + L * (sn * ex + c * ey);
+        // angulo DERIVADO de la direccion efectiva (negativo = giro horario, hacia la derecha propia)
+        self.theta = Math.atan2(-best, LOOKAHEAD_L0);
     }
 
     private static void clear(Agent a) {
         a.theta = 0;
         a.hasTemporalTarget = false;
-    }
-
-    private boolean conflict(Agent self, Agent[] others, double ex, double ey) {
-        return minClearance(self, others, ex, ey) < clearance;
-    }
-
-    private double minClearance(Agent self, Agent[] others, double ex, double ey) {
-        double ux = self.vd * ex;
-        double uy = self.vd * ey;
-        double m = Double.POSITIVE_INFINITY;
-        for (Agent o : others) {
-            if (o == self) {
-                continue;
-            }
-            m = Math.min(m, predictedClearance(o.x - self.x, o.y - self.y, o.vx - ux, o.vy - uy));
-        }
-        return m;
-    }
-
-    /** +1 (antihorario) o -1 (horario): lado preferido para esquivar al vecino mas comprometido. */
-    private double preferredSign(Agent self, Agent[] others, double ex, double ey) {
-        double worst = Double.POSITIVE_INFINITY;
-        double cross = 0;
-        for (Agent o : others) {
-            if (o == self) {
-                continue;
-            }
-            double sc = predictedClearance(o.x - self.x, o.y - self.y, o.vx - self.vd * ex, o.vy - self.vd * ey);
-            if (sc < worst) {
-                worst = sc;
-                cross = ex * (o.y - self.y) - ey * (o.x - self.x);
-            }
-        }
-        // vecino a la izquierda (cross > 0) -> giro horario (-1); alineado -> horario
-        return cross > 1e-9 ? -1.0 : (cross < -1e-9 ? 1.0 : -1.0);
     }
 }

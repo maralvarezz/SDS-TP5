@@ -50,6 +50,17 @@ public final class SimulationEngine {
         return ag;
     }
 
+    /** Todos los agentes a menos de 'tol' (o 2 cm si tol = 0) de su target final y casi quietos (< 5 cm/s). */
+    static boolean allSettled(Agent[] ag, double tol) {
+        double r = Math.max(tol, 0.02);
+        for (Agent a : ag) {
+            if (Math.hypot(a.x - a.finalX, a.y - a.finalY) > r || Math.hypot(a.vx, a.vy) > 0.05) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     public static Result run(SimulationConfig cfg, Event ev, StateSink sink) {
         long t0 = System.nanoTime();
         Result res = new Result();
@@ -59,12 +70,15 @@ public final class SimulationEngine {
         double dt = dtExp / nSub;
         int outStride = nSub / q;
         int updStride = Math.max(1, (int) Math.round(cfg.avoidanceUpdateDt / dt));
-        long total = (long) (ev.endFrame - ev.startFrame) * nSub;
+        long total = (long) (ev.endFrame - ev.startFrame) * nSub;       // fin del evento experimental
+        long maxTotal = total + (cfg.extendUntilArrival ? (long) Math.ceil(cfg.maxExtraSeconds / dt) : 0L);
+        long holdSteps = (long) Math.ceil(cfg.holdSeconds / dt);
+        long arrivedSince = -1;
 
         Agent[] ag = initialAgents(cfg, ev);
         int n = ag.length;
         SfmModel model = new SfmModel(cfg.tau, cfg.k, cfg.kappa, cfg.arrivalTolerance);
-        AvoidanceLayer layer = new AvoidanceLayer(cfg.p1, cfg.p2, cfg.angleStepDeg);
+        AvoidanceLayer layer = cfg.avoidanceEnabled ? new AvoidanceLayer(cfg.amplitude, cfg.spatialRange) : null;
 
         double[] ax = new double[n];
         double[] ay = new double[n];
@@ -77,11 +91,13 @@ public final class SimulationEngine {
         double maxTheta = 0;
         int outputs = 0;
 
-        for (long step = 0; step <= total; step++) {
+        for (long step = 0; ; step++) {
             boolean doUpdate = step % updStride == 0;
             if (doUpdate) {
-                for (int i = 0; i < n; i++) {
-                    layer.update(ag[i], ag, cfg.arrivalTolerance);
+                if (layer != null) {
+                    for (int i = 0; i < n; i++) {
+                        layer.update(ag[i], ag, cfg.arrivalTolerance);
+                    }
                 }
                 model.accelerations(ag, ax, ay);
             } else if (step == 0) {
@@ -92,8 +108,23 @@ public final class SimulationEngine {
                 sink.state(time, ev.startFrame + (double) step / nSub, ag);
                 outputs++;
             }
-            if (step == total) {
-                break;
+            if (step >= total) {
+                if (!cfg.extendUntilArrival || step >= maxTotal) {
+                    total = step;
+                    break;
+                }
+                // extension de animacion: ambos agentes en su target final y quietos, luego holdSeconds mas
+                if (allSettled(ag, cfg.arrivalTolerance)) {
+                    if (arrivedSince < 0) {
+                        arrivedSince = step;
+                    }
+                    if (step - arrivedSince >= holdSteps) {
+                        total = step;
+                        break;
+                    }
+                } else {
+                    arrivedSince = -1;
+                }
             }
             for (int i = 0; i < n; i++) {
                 if (ag[i].hasTemporalTarget) {

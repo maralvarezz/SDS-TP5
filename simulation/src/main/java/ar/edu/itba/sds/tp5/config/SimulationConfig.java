@@ -10,7 +10,7 @@ import java.util.Map;
 import java.util.TreeMap;
 
 /**
- * Configuracion efectiva de UNA corrida (un evento, un par p1/p2).
+ * Configuracion efectiva de UNA corrida (un evento, un par amplitude/lambda).
  *
  * JSON y TXT ("clave = valor", comentarios con #) se aplanan al mismo mapa de claves con puntos
  * y pasan por el mismo constructor, de modo que ambos formatos tienen exactamente la misma semantica.
@@ -20,13 +20,13 @@ public final class SimulationConfig {
 
     public static final String MODEL_SFM = "SFM_NO_SOCIAL";
     /** Versión del algoritmo. Se incorpora al identificador de corrida: subirla invalida el cache. */
-    public static final String ALGORITHM_VERSION = "1.0.0";
+    public static final String ALGORITHM_VERSION = "2.0.0";
 
     // --- identificacion
     public final String model;
     public final int eventId;
-    public final double p1;   // horizonte de anticipacion [s]
-    public final double p2;   // distancia de paso de seguridad (centro a centro) [m]
+    public final double amplitude;     // A: amplitud de elusion [m]
+    public final double spatialRange;  // lambda: alcance espacial de la elusion [m]
     public final long seed;
 
     // --- tiempo
@@ -37,6 +37,8 @@ public final class SimulationConfig {
     public final String dataPath;
     public final String readmePath;
     public final String outputDir;
+    /** Ventanas de evento limpias (JSON). Vacio = ventana completa del LEEME. */
+    public final String windowsPath;
 
     // --- parametros fisicos SFM (Helbing, Farkas & Vicsek 2000, Nature 407:487)
     public final double mass;     // kg
@@ -49,19 +51,28 @@ public final class SimulationConfig {
     public final int velocityWindowSamples;  // muestras para estimar la velocidad inicial
 
     // --- parametros numericos de la capa de elusion (NO se calibran)
-    public final double angleStepDeg;
+    public final boolean avoidanceEnabled;  // false = referencia "sin elusion" (no es un parametro calibrable)
     public final double avoidanceUpdateDt;
     public final double arrivalTolerance;
+
+    // --- extension POST-EVENTO (solo para animaciones; NO se usa para las metricas)
+    /** Si es true, la corrida sigue despues del ultimo instante experimental hasta que ambos agentes llegan a su
+     *  target final y quedan quietos, y luego se agregan {@link #holdSeconds} segundos mas. */
+    public final boolean extendUntilArrival;
+    public final double holdSeconds;
+    public final double maxExtraSeconds;
 
     /** overrides de IDs ambiguos, ej. "2.left" -> "1000". Orden estable. */
     public final Map<String, String> idOverrides;
 
     private static final String[] KNOWN = {
-        "model", "eventId", "p1", "p2", "seed", "dt", "outputPerFrame", "dataPath", "readmePath", "outputDir",
+        "model", "eventId", "amplitude", "lambda", "seed", "dt", "outputPerFrame", "dataPath", "readmePath", "outputDir",
+        "windowsPath",
         "physicalParameters.mass", "physicalParameters.tau", "physicalParameters.k",
         "physicalParameters.kappa", "physicalParameters.radius",
         "data.velocityWindowSamples",
-        "avoidance.angleStepDeg", "avoidance.updateDt", "avoidance.arrivalTolerance"
+        "avoidance.enabled", "avoidance.updateDt", "avoidance.arrivalTolerance",
+        "animation.extendUntilArrival", "animation.holdSeconds", "animation.maxExtraSeconds"
     };
 
     private SimulationConfig(Map<String, String> m) {
@@ -79,23 +90,27 @@ public final class SimulationConfig {
             throw new ConfigException("Modelo no soportado: '" + model + "' (solo " + MODEL_SFM + ")");
         }
         eventId = (int) integer(m, "eventId", null);
-        p1 = dbl(m, "p1", null);
-        p2 = dbl(m, "p2", null);
+        amplitude = dbl(m, "amplitude", null);
+        spatialRange = dbl(m, "lambda", null);
         seed = integer(m, "seed", 0L);
         dt = dbl(m, "dt", 1e-4);
         outputPerFrame = (int) integer(m, "outputPerFrame", 3L);
         dataPath = str(m, "dataPath", "docs/elusion_1_contra_1.txt");
         readmePath = str(m, "readmePath", "docs/LEEME_elusion1contra1.txt");
         outputDir = str(m, "outputDir", "output");
+        windowsPath = str(m, "windowsPath", "");
         mass = dbl(m, "physicalParameters.mass", 80.0);
         tau = dbl(m, "physicalParameters.tau", 0.5);
         k = dbl(m, "physicalParameters.k", 1.2e5);
         kappa = dbl(m, "physicalParameters.kappa", 2.4e5);
         radius = dbl(m, "physicalParameters.radius", 0.25);
         velocityWindowSamples = (int) integer(m, "data.velocityWindowSamples", 8L);
-        angleStepDeg = dbl(m, "avoidance.angleStepDeg", 1.0);
+        avoidanceEnabled = bool(m, "avoidance.enabled", true);
         avoidanceUpdateDt = dbl(m, "avoidance.updateDt", 0.01);
         arrivalTolerance = dbl(m, "avoidance.arrivalTolerance", 0.02);
+        extendUntilArrival = bool(m, "animation.extendUntilArrival", false);
+        holdSeconds = dbl(m, "animation.holdSeconds", 2.0);
+        maxExtraSeconds = dbl(m, "animation.maxExtraSeconds", 30.0);
 
         Map<String, String> ov = new TreeMap<>();
         for (Map.Entry<String, String> e : m.entrySet()) {
@@ -113,15 +128,15 @@ public final class SimulationConfig {
 
     private void validate() {
         require(eventId >= 1, "eventId debe ser >= 1");
-        require(isFinite(p1) && p1 > 0, "p1 (horizonte, s) debe ser > 0");
-        require(isFinite(p2) && p2 > 0, "p2 (distancia de paso, m) debe ser > 0");
+        require(isFinite(amplitude) && amplitude > 0, "amplitude (A, m) debe ser finita y > 0");
+        require(isFinite(spatialRange) && spatialRange > 0, "lambda (alcance espacial, m) debe ser finito y > 0");
         require(isFinite(dt) && dt > 0 && dt <= 1e-2, "dt debe estar en (0, 0.01] s para integrar el contacto granular");
         require(outputPerFrame >= 1, "outputPerFrame debe ser >= 1");
         require(mass > 0 && tau > 0 && k > 0 && kappa >= 0 && radius > 0, "parametros fisicos deben ser positivos");
         require(velocityWindowSamples >= 2, "data.velocityWindowSamples debe ser >= 2");
-        require(angleStepDeg > 0 && angleStepDeg <= 45, "avoidance.angleStepDeg en (0, 45]");
         require(avoidanceUpdateDt >= dt, "avoidance.updateDt debe ser >= dt");
         require(arrivalTolerance >= 0, "avoidance.arrivalTolerance debe ser >= 0");
+        require(holdSeconds >= 0 && maxExtraSeconds >= 0, "animation.holdSeconds y animation.maxExtraSeconds deben ser >= 0");
         require(!dataPath.isEmpty() && !readmePath.isEmpty() && !outputDir.isEmpty(), "rutas vacias");
     }
 
@@ -145,12 +160,12 @@ public final class SimulationConfig {
         return new SimulationConfig(flat);
     }
 
-    /** Devuelve una copia con otro evento y otro (p1, p2); usado por el modo batch. */
-    public SimulationConfig with(int newEvent, double newP1, double newP2) {
+    /** Devuelve una copia con otro evento y otro (A, lambda); usado por el modo batch. */
+    public SimulationConfig with(int newEvent, double newAmplitude, double newLambda) {
         Map<String, String> m = toFlat();
         m.put("eventId", Integer.toString(newEvent));
-        m.put("p1", Double.toString(newP1));
-        m.put("p2", Double.toString(newP2));
+        m.put("amplitude", Double.toString(newAmplitude));
+        m.put("lambda", Double.toString(newLambda));
         return new SimulationConfig(m);
     }
 
@@ -205,23 +220,27 @@ public final class SimulationConfig {
         Map<String, String> m = new LinkedHashMap<>();
         m.put("model", model);
         m.put("eventId", Integer.toString(eventId));
-        m.put("p1", Double.toString(p1));
-        m.put("p2", Double.toString(p2));
+        m.put("amplitude", Double.toString(amplitude));
+        m.put("lambda", Double.toString(spatialRange));
         m.put("seed", Long.toString(seed));
         m.put("dt", Double.toString(dt));
         m.put("outputPerFrame", Integer.toString(outputPerFrame));
         m.put("dataPath", dataPath);
         m.put("readmePath", readmePath);
         m.put("outputDir", outputDir);
+        m.put("windowsPath", windowsPath);
         m.put("physicalParameters.mass", Double.toString(mass));
         m.put("physicalParameters.tau", Double.toString(tau));
         m.put("physicalParameters.k", Double.toString(k));
         m.put("physicalParameters.kappa", Double.toString(kappa));
         m.put("physicalParameters.radius", Double.toString(radius));
         m.put("data.velocityWindowSamples", Integer.toString(velocityWindowSamples));
-        m.put("avoidance.angleStepDeg", Double.toString(angleStepDeg));
+        m.put("avoidance.enabled", Boolean.toString(avoidanceEnabled));
         m.put("avoidance.updateDt", Double.toString(avoidanceUpdateDt));
         m.put("avoidance.arrivalTolerance", Double.toString(arrivalTolerance));
+        m.put("animation.extendUntilArrival", Boolean.toString(extendUntilArrival));
+        m.put("animation.holdSeconds", Double.toString(holdSeconds));
+        m.put("animation.maxExtraSeconds", Double.toString(maxExtraSeconds));
         for (Map.Entry<String, String> e : idOverrides.entrySet()) {
             m.put("idOverrides." + e.getKey(), e.getValue());
         }
@@ -261,6 +280,21 @@ public final class SimulationConfig {
         } catch (NumberFormatException e) {
             throw new ConfigException("Valor no numerico para '" + k + "': '" + v + "'");
         }
+    }
+
+    private static boolean bool(Map<String, String> m, String k, boolean def) {
+        String v = m.get(k);
+        if (v == null) {
+            return def;
+        }
+        String t = v.trim().toLowerCase(Locale.ROOT);
+        if (t.equals("true")) {
+            return true;
+        }
+        if (t.equals("false")) {
+            return false;
+        }
+        throw new ConfigException("Valor booleano invalido para '" + k + "': '" + v + "' (use true|false)");
     }
 
     private static long integer(Map<String, String> m, String k, Long def) {

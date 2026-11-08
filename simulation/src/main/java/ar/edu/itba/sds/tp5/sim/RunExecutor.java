@@ -1,6 +1,7 @@
 package ar.edu.itba.sds.tp5.sim;
 
 import ar.edu.itba.sds.tp5.config.SimulationConfig;
+import ar.edu.itba.sds.tp5.avoidance.AvoidanceLayer;
 import ar.edu.itba.sds.tp5.data.Event;
 import ar.edu.itba.sds.tp5.io.TextOutputWriter;
 import java.io.IOException;
@@ -41,12 +42,14 @@ public final class RunExecutor {
         sb.append("algorithm=").append(SimulationConfig.ALGORITHM_VERSION).append('\n');
         sb.append("data_sha256=").append(ctx.dataset.sha256).append('\n');
         sb.append("readme_sha256=").append(ctx.readmeSha256).append('\n');
+        sb.append("windows_sha256=").append(ctx.windowsSha256).append('\n');
         sb.append("left=").append(ev.left.id).append("\nright=").append(ev.right.id).append('\n');
         sb.append("start=").append(ev.startFrame).append("\nend=").append(ev.endFrame).append('\n');
         Map<String, String> flat = new TreeMap<>(cfg.toFlat());
         flat.remove("dataPath");
         flat.remove("readmePath");
         flat.remove("outputDir");
+        flat.remove("windowsPath");
         // solo los overrides de ESTE evento afectan la corrida
         flat.keySet().removeIf(k -> k.startsWith("idOverrides.") && !k.startsWith("idOverrides." + cfg.eventId + "."));
         for (Map.Entry<String, String> e : flat.entrySet()) {
@@ -98,23 +101,28 @@ public final class RunExecutor {
         List<String> h = new ArrayList<>();
         h.add("run_id: " + runId);
         h.add("algorithm_version: " + SimulationConfig.ALGORITHM_VERSION);
-        h.add("model: " + cfg.model + " (SFM de Helbing-Farkas-Vicsek 2000 sin fuerza social) + capa de elusion (p1,p2)");
+        h.add("model: " + cfg.model + " (SFM de Helbing-Farkas-Vicsek 2000 sin fuerza social) + capa de elusion continua (A, lambda)");
         h.add("event_id: " + cfg.eventId);
         h.add("seed: " + cfg.seed + " (el motor es determinista; la semilla se registra por trazabilidad)");
         h.add("units: lengths m, time s, velocities m/s, theta rad");
-        h.add("p1_horizon_s: " + cfg.p1);
-        h.add("p2_clearance_m: " + cfg.p2);
+        h.add("amplitude_m: " + cfg.amplitude);
+        h.add("lambda_m: " + cfg.spatialRange);
+        h.add("avoidance_enabled: " + cfg.avoidanceEnabled);
+        h.add("avoidance_design_constants: L0_m=" + AvoidanceLayer.LOOKAHEAD_L0 + " transition_length_m="
+            + AvoidanceLayer.TRANSITION_LENGTH + " side=derecha_propia (fijas, no calibradas)");
         h.add("dt_requested_s: " + cfg.dt);
         h.add(String.format(Locale.ROOT, "dt_effective_s: %.9g  (= (1/fps)/%d; cada intervalo experimental tiene %d pasos exactos)", dtEff, nSub, nSub));
         h.add(String.format(Locale.ROOT, "output_dt_s: %.9g  (cada %d pasos; %d salidas por intervalo experimental)", dtEff * stride, stride, cfg.outputPerFrame));
         h.add("physical_parameters: mass_kg=" + cfg.mass + " tau_s=" + cfg.tau + " k_kg_s-2=" + cfg.k
             + " kappa_kg_m-1_s-1=" + cfg.kappa + " radius_m=" + cfg.radius
             + " source=Helbing,Farkas,Vicsek 2000 Nature 407:487 (contacto granular, sin termino social); radius de la consigna");
-        h.add("avoidance_numerics: angle_step_deg=" + cfg.angleStepDeg + " update_dt_s=" + cfg.avoidanceUpdateDt
+        h.add("avoidance_numerics: update_dt_s=" + cfg.avoidanceUpdateDt
             + " arrival_tolerance_m=" + cfg.arrivalTolerance + " (no calibrados)");
         h.add("velocity_window_samples: " + cfg.velocityWindowSamples);
         h.add("source_dataset: " + ctx.dataPathRel + " sha256=" + ctx.dataset.sha256);
         h.add("source_readme: " + ctx.readmePathRel + " sha256=" + ctx.readmeSha256);
+        h.add("event_windows: " + (cfg.windowsPath.isEmpty() ? "none (ventana completa del LEEME)" : cfg.windowsPath)
+            + " sha256=" + ctx.windowsSha256);
         h.add(String.format(Locale.ROOT, "fps: %s", Double.toString(ev.fps)));
         h.add("start_frame: " + ev.startFrame);
         h.add("end_frame: " + ev.endFrame);

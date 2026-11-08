@@ -11,7 +11,7 @@ import java.util.TreeSet;
  * Construye un {@link Event} a partir del dataset y de una pasada del LEEME.
  *
  * Reglas (documentadas porque la consigna no las fija):
- *  - Ventana del evento: frames del LEEME [f0, f1] en los que AMBOS peatones tienen dato.
+ *  - Ventana del evento: frames del LEEME [f0, f1] (o la ventana limpia configurada) en los que AMBOS peatones tienen dato.
  *  - Instante inicial: primer frame f de la ventana tal que ambos tienen datos en f, f+1, ..., f+K-1 (K = velocityWindowSamples),
  *    para poder estimar la velocidad inicial. Normalmente coincide con el primer frame comun; si no, se advierte.
  *  - Instante final: ultimo frame de la ventana con dato en ambos. Target = posicion experimental en ese frame.
@@ -23,6 +23,25 @@ public final class EventBuilder {
     private EventBuilder() { }
 
     public static Event build(TrajectoryDataset ds, Passage p, Map<String, String> idOverrides, int velocityWindowSamples) {
+        return build(ds, p, idOverrides, velocityWindowSamples, null);
+    }
+
+    /**
+     * @param window opcional {frame inicial, frame final} de la ventana LIMPIA del evento (debe estar dentro del LEEME).
+     *               Es una decision de limpieza de datos que reemplaza la ventana del LEEME; ver README.
+     */
+    public static Event build(TrajectoryDataset ds, Passage p, Map<String, String> idOverrides, int velocityWindowSamples,
+                              int[] window) {
+        int frameStart = p.frameStart;
+        int frameEnd = p.frameEnd;
+        if (window != null) {
+            if (window[0] < p.frameStart || window[1] > p.frameEnd) {
+                throw new ConfigException("Evento " + p.index + ": la ventana limpia " + window[0] + ".." + window[1]
+                    + " no esta dentro de la ventana del LEEME " + p.frameStart + ".." + p.frameEnd);
+            }
+            frameStart = window[0];
+            frameEnd = window[1];
+        }
         List<String> warnings = new ArrayList<>();
         String leftId = resolveId(p, "left", p.leftId, idOverrides, warnings);
         String rightId = resolveId(p, "right", p.rightId, idOverrides, warnings);
@@ -31,14 +50,14 @@ public final class EventBuilder {
         NavigableMap<Integer, double[]> sr = ds.samples(rightId);
 
         TreeSet<Integer> common = new TreeSet<>();
-        for (Integer f : sl.subMap(p.frameStart, true, p.frameEnd, true).keySet()) {
+        for (Integer f : sl.subMap(frameStart, true, frameEnd, true).keySet()) {
             if (sr.containsKey(f)) {
                 common.add(f);
             }
         }
         if (common.isEmpty()) {
             throw new ConfigException("Evento " + p.index + ": los peatones " + leftId + " y " + rightId
-                + " no comparten ningun frame en [" + p.frameStart + "," + p.frameEnd + "]");
+                + " no comparten ningun frame en [" + frameStart + "," + frameEnd + "]");
         }
         int K = velocityWindowSamples;
         int start = -1;

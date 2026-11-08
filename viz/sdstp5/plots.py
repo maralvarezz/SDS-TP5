@@ -16,8 +16,8 @@ from .observables import sim_at_experimental_frames
 C = {"E1": "#0072B2", "E2": "#D55E00", "exp": "#222222", "sim": "#0072B2", "grid": "#d9d9d9"}
 LABEL = {"E1": r"$\langle E^{(1)}\rangle$ [m$^2$]", "E2": r"$\langle E^{(2)}\rangle$ [m$^2$]"}
 NAME = {"E1": "Métrica 1 (iguales tiempos)", "E2": "Métrica 2 (punto más cercano)"}
-P1L = "p1: horizonte de anticipación T [s]"
-P2L = "p2: distancia de paso D [m]"
+P1L = "A: amplitud de elusión [m]"
+P2L = "λ: alcance espacial [m]"
 
 
 def _style():
@@ -34,35 +34,38 @@ def _save(fig, out: Path, name: str):
 
 def surface_heatmaps(pop, opt, out: Path, baseline=None):
     _style()
-    p1 = np.sort(pop.p1.unique())
-    p2 = np.sort(pop.p2.unique())
+    A = np.sort(pop.A.unique())
+    lam = np.sort(pop.lam.unique())
     fig, axs = plt.subplots(1, 2, figsize=(12, 4.6))
     for ax, m in zip(axs, ("E1", "E2")):
-        Z = pop.pivot(index="p1", columns="p2", values=m).loc[p1, p2].values
-        im = ax.pcolormesh(p2, np.arange(len(p1)), Z, shading="nearest", cmap="viridis_r")
-        ax.set_yticks(np.arange(len(p1)))
-        ax.set_yticklabels([f"{v:g}" for v in p1])
+        Z = pop.pivot(index="A", columns="lam", values=m).loc[A, lam].values
+        im = ax.pcolormesh(np.arange(len(lam)), np.arange(len(A)), Z, shading="nearest", cmap="viridis_r")
+        ax.set_yticks(np.arange(len(A)))
+        ax.set_yticklabels([f"{v:g}" for v in A])
+        ax.set_xticks(np.arange(len(lam)))
+        ax.set_xticklabels([f"{v:g}" for v in lam], rotation=60)
         ax.grid(False)
-        i = int(np.where(np.isclose(p1, opt[m]["p1"]))[0][0])
-        ax.plot(opt[m]["p2"], i, marker="*", ms=16, color="white", mec="black", label=f"óptimo ({opt[m]['p1']:g} s, {opt[m]['p2']:.2f} m)")
+        i = int(np.where(np.isclose(A, opt[m]["A"]))[0][0])
+        j = int(np.where(np.isclose(lam, opt[m]["lam"]))[0][0])
+        ax.plot(j, i, marker="*", ms=16, color="white", mec="black", label=f"óptimo (A = {opt[m]['A']:g} m, λ = {opt[m]['lam']:g} m)")
         ax.set_xlabel(P2L)
         ax.set_ylabel(P1L)
         ax.set_title(NAME[m])
         ax.legend(loc="upper right")
         cb = fig.colorbar(im, ax=ax)
         cb.set_label(LABEL[m])
-    fig.suptitle("Calibración poblacional: error en la grilla (p1, p2); eje p1 en categorías (no a escala)")
+    fig.suptitle("Calibración poblacional: error en la grilla (A, λ); ejes en categorías (no a escala)")
     _save(fig, out, "poblacional_superficie_heatmap")
 
     fig = plt.figure(figsize=(12, 5))
     for k, m in enumerate(("E1", "E2")):
         ax = fig.add_subplot(1, 2, k + 1, projection="3d")
-        X, Y = np.meshgrid(p2, p1)
-        Z = pop.pivot(index="p1", columns="p2", values=m).loc[p1, p2].values
+        X, Y = np.meshgrid(lam, A)
+        Z = pop.pivot(index="A", columns="lam", values=m).loc[A, lam].values
         ax.plot_surface(X, Y, Z, cmap="viridis_r", linewidth=0, antialiased=True, alpha=0.95)
-        ax.scatter([opt[m]["p2"]], [opt[m]["p1"]], [opt[m]["value"]], color="red", s=60, label="óptimo")
-        ax.set_xlabel("p2 [m]")
-        ax.set_ylabel("p1 [s]")
+        ax.scatter([opt[m]["lam"]], [opt[m]["A"]], [opt[m]["value"]], color="red", s=60, label="óptimo")
+        ax.set_xlabel("λ [m]")
+        ax.set_ylabel("A [m]")
         ax.set_zlabel(LABEL[m])
         ax.set_title(NAME[m])
         ax.legend()
@@ -75,31 +78,31 @@ def cuts(pop, opt, out: Path, baseline=None):
     fig, axs = plt.subplots(2, 2, figsize=(11, 7.4))
     for r, m in enumerate(("E1", "E2")):
         o = opt[m]
-        a = pop[np.isclose(pop.p2, o["p2"])].sort_values("p1")
+        a = pop[np.isclose(pop.lam, o["lam"])].sort_values("A")
         ax = axs[r, 0]
-        ax.errorbar(a.p1, a[m], yerr=a[m + "_sem"], marker="o", ms=4, capsize=3, color=C[m], label=f"{m[1]}: p2 = {o['p2']:.2f} m fijo")
-        ax.axvline(o["p1"], color="k", ls=":", lw=1)
+        ax.errorbar(a.A, a[m], yerr=a[m + "_sem"], marker="o", ms=4, capsize=3, color=C[m], label=f"λ = {o['lam']:g} m fijo")
+        ax.axvline(o["A"], color="k", ls=":", lw=1)
         if baseline is not None:
             ax.axhline(baseline[m], color="gray", ls="--", lw=1, label="sin elusión (referencia)")
-        # p1 en escala logaritmica (la grilla de p1 es mas densa para valores chicos); p2 queda lineal
+        # A en escala logaritmica (la grilla es geometrica); lam queda lineal
         ax.set_xscale("log")
-        ticks = [0.25, 0.5, 1, 2, 4, 8]
+        ticks = [t for t in (0.05, 0.1, 0.2, 0.5, 1, 2, 5) if a.A.min() * 0.99 <= t <= a.A.max() * 1.01]
         ax.set_xticks(ticks)
         ax.set_xticklabels([f"{t:g}" for t in ticks])
         ax.xaxis.set_minor_formatter(matplotlib.ticker.NullFormatter())
         ax.set_xlabel(P1L + " (escala log)")
         ax.set_ylabel(LABEL[m])
-        ax.set_title(f"{NAME[m]}: corte en p1")
+        ax.set_title(f"{NAME[m]}: corte en A")
         ax.legend(loc="best")
-        b = pop[np.isclose(pop.p1, o["p1"])].sort_values("p2")
+        b = pop[np.isclose(pop.A, o["A"])].sort_values("lam")
         ax = axs[r, 1]
-        ax.errorbar(b.p2, b[m], yerr=b[m + "_sem"], marker="o", ms=4, capsize=3, color=C[m], label=f"p1 = {o['p1']:g} s fijo")
-        ax.axvline(o["p2"], color="k", ls=":", lw=1)
+        ax.errorbar(b.lam, b[m], yerr=b[m + "_sem"], marker="o", ms=4, capsize=3, color=C[m], label=f"A = {o['A']:g} m fijo")
+        ax.axvline(o["lam"], color="k", ls=":", lw=1)
         if baseline is not None:
             ax.axhline(baseline[m], color="gray", ls="--", lw=1, label="sin elusión (referencia)")
         ax.set_xlabel(P2L)
         ax.set_ylabel(LABEL[m])
-        ax.set_title(f"{NAME[m]}: corte en p2")
+        ax.set_title(f"{NAME[m]}: corte en λ")
         ax.legend(loc="best")
     fig.suptitle("Cortes 1D por el óptimo; barras = error estándar entre eventos (σ/√M)")
     fig.tight_layout()
@@ -111,17 +114,17 @@ def individual_params(ind, opt, out: Path):
     fig, axs = plt.subplots(2, 3, figsize=(13, 7))
     for r, m in enumerate(("E1", "E2")):
         d = ind[ind.metric == m]
-        for c, (col, lab) in enumerate((("p1_opt", P1L), ("p2_opt", P2L))):
+        for c, (col, lab) in enumerate((("A_opt", P1L), ("lam_opt", P2L))):
             ax = axs[r, c]
             ax.hist(d[col], bins=12, color=C[m], alpha=0.75, edgecolor="white")
-            ax.axvline(opt[m]["p1" if c == 0 else "p2"], color="k", lw=2, label="valor poblacional")
+            ax.axvline(opt[m]["A" if c == 0 else "lam"], color="k", lw=2, label="valor poblacional")
             ax.set_xlabel(lab)
             ax.set_ylabel("eventos")
             ax.set_title(f"{NAME[m]}: {col}")
             ax.legend()
         ax = axs[r, 2]
-        ax.scatter(d.p2_opt, d.p1_opt, color=C[m], s=36)
-        ax.scatter([opt[m]["p2"]], [opt[m]["p1"]], marker="*", s=220, color="k", label="poblacional")
+        ax.scatter(d.lam_opt, d.A_opt, color=C[m], s=36)
+        ax.scatter([opt[m]["lam"]], [opt[m]["A"]], marker="*", s=220, color="k", label="poblacional")
         ax.set_xlabel(P2L)
         ax.set_ylabel(P1L)
         ax.set_title("óptimos individuales")
@@ -159,7 +162,7 @@ def cv_plot(cv, cvs, out: Path):
     fig, axs = plt.subplots(1, 2, figsize=(11, 4.4))
     for ax, m in zip(axs, ("E1", "E2")):
         d = cv[cv.metric == m]
-        bp = ax.boxplot([d.E_train, d.E_validation], patch_artist=True)
+        bp = ax.boxplot([d.E_train, d.E_validation], patch_artist=True, showfliers=False)
         ax.set_xticks([1, 2], ["entrenamiento\n(calibrado ahí)", "validación\n(calibrado en entren.)"])
         for p in bp["boxes"]:
             p.set_facecolor(C[m])
@@ -170,6 +173,8 @@ def cv_plot(cv, cvs, out: Path):
         ax.set_title(f"{NAME[m]} ({len(d)} particiones)")
         ax.legend(loc="upper left")
     fig.tight_layout()
+    fig.text(0.5, -0.01, "caja: cuartiles 25-75 %, línea naranja: mediana, bigotes: hasta 1,5 × IQR (no se muestran valores atípicos)",
+             ha="center", va="top", fontsize=8, color="gray")
     _save(fig, out, "validacion_cruzada")
 
 
@@ -189,7 +194,7 @@ def event_overlay(event, run, out: Path, name: str):
     ax.set_aspect("equal", adjustable="datalim")
     ax.set_xlabel("x [m]")
     ax.set_ylabel("y [m]")
-    ax.set_title(f"Evento {event.event_id}: p1={run.p1:g} s, p2={run.p2:g} m (■ inicio, ★ target final)")
+    ax.set_title(f"Evento {event.event_id}: A = {run.A:g} m, λ = {run.lam:g} m (■ inicio, ★ target final)")
     ax.legend(fontsize=8)
     ax = axs[1]
     for k, (aid, ex) in enumerate(event.agents.items()):
@@ -207,7 +212,7 @@ def event_overlay(event, run, out: Path, name: str):
     ib = np.searchsorted(b.frame, common)
     ax.plot(a.t[ia], np.hypot(a.x[ia] - b.x[ib], a.y[ia] - b.y[ib]), "o", ms=2.5, color=C["exp"], label="experimental")
     ax.plot(sa.t, np.hypot(sa.x - sb.x, sa.y - sb.y), color=C["sim"], label="simulado")
-    ax.axhline(run.p2, color="gray", ls="--", lw=1, label="p2")
+    ax.axhline(0.5, color="gray", ls="--", lw=1, label="contacto (2r = 0.5 m)")
     ax.set_xlabel("t [s]")
     ax.set_ylabel("distancia entre peatones [m]")
     ax.set_title("Distancia relativa")

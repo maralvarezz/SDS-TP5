@@ -38,8 +38,8 @@ class Run:
     path: Path
     header: dict
     event_id: int
-    p1: float
-    p2: float
+    A: float
+    lam: float
     agents: dict  # agent_id -> AgentTrack (orden de aparicion)
 
 
@@ -114,8 +114,8 @@ def read_run(path) -> Run:
     for ainfo in h["agents"]:
         agents[ainfo["id"]].side = ainfo.get("side")
         agents[ainfo["id"]].meta = {k: float(v) for k, v in ainfo.items() if k not in ("id", "side")}
-    return Run(path=path, header=h, event_id=int(h["event_id"]), p1=float(h["p1_horizon_s"]),
-               p2=float(h["p2_clearance_m"]), agents=agents)
+    return Run(path=path, header=h, event_id=int(h["event_id"]), A=float(h["amplitude_m"]),
+               lam=float(h["lambda_m"]), agents=agents)
 
 
 def read_event(path) -> EventData:

@@ -1,6 +1,6 @@
 """Experimentos del Problema 1 (b, c, d) calculados sobre errores de corridas persistidas.
 
-Todo se hace sobre una unica grilla (p1, p2): la calibracion poblacional, la individual y la validacion cruzada
+Todo se hace sobre una unica grilla (A, lam): la calibracion poblacional, la individual y la validacion cruzada
 buscan el optimo sobre las MISMAS combinaciones, de modo que las comparaciones sean justas (misma resolucion).
 """
 from __future__ import annotations
@@ -16,16 +16,14 @@ METRICS = ("E1", "E2")
 
 def make_grid(cfg: dict) -> list[tuple[float, float]]:
     g = cfg["grid"]
-    p1 = [float(v) for v in g["p1_horizon_s"]]
-    s = g["p2_clearance_m"]
-    n = int(round((s["stop"] - s["start"]) / s["step"])) + 1
-    p2 = [round(s["start"] + i * s["step"], 10) for i in range(n)]
-    return [(a, b) for a in p1 for b in p2]
+    A = [float(v) for v in g["amplitude_m"]]
+    lam = [float(v) for v in g["lambda_m"]]
+    return [(a, b) for a in A for b in lam]
 
 
 def population_table(table: pd.DataFrame) -> pd.DataFrame:
-    """<E1>, <E2> por (p1, p2) con desvio entre eventos y error estandar (std/sqrt(M))."""
-    g = table.groupby(["p1", "p2"])
+    """<E1>, <E2> por (A, lam) con desvio entre eventos y error estandar (std/sqrt(M))."""
+    g = table.groupby(["A", "lam"])
     out = g.agg(M=("event_id", "nunique"), E1=("E1", "mean"), E1_std=("E1", "std"),
                 E2=("E2", "mean"), E2_std=("E2", "std")).reset_index()
     out["E1_sem"] = out.E1_std / np.sqrt(out.M)
@@ -34,9 +32,9 @@ def population_table(table: pd.DataFrame) -> pd.DataFrame:
 
 
 def argmin_row(df: pd.DataFrame, col: str) -> pd.Series:
-    """Fila de minimo; los empates se resuelven de forma determinista (menor p1, luego menor p2)."""
+    """Fila de minimo; los empates se resuelven de forma determinista (menor A, luego menor lam)."""
     m = df[col].min()
-    cand = df[np.isclose(df[col], m, rtol=0, atol=1e-12)].sort_values(["p1", "p2"])
+    cand = df[np.isclose(df[col], m, rtol=0, atol=1e-12)].sort_values(["A", "lam"])
     return cand.iloc[0]
 
 
@@ -44,10 +42,10 @@ def population_optima(pop: pd.DataFrame) -> dict:
     res = {}
     for m in METRICS:
         r = argmin_row(pop, m)
-        res[m] = {"p1": float(r.p1), "p2": float(r.p2), "value": float(r[m]), "sem": float(r[m + "_sem"])}
+        res[m] = {"A": float(r.A), "lam": float(r.lam), "value": float(r[m]), "sem": float(r[m + "_sem"])}
     # cada optimo evaluado con la otra metrica (comparacion de optimos)
     for m, other in (("E1", "E2"), ("E2", "E1")):
-        r = pop[(np.isclose(pop.p1, res[m]["p1"])) & (np.isclose(pop.p2, res[m]["p2"]))].iloc[0]
+        r = pop[(np.isclose(pop.A, res[m]["A"])) & (np.isclose(pop.lam, res[m]["lam"]))].iloc[0]
         res[m]["other_metric_value"] = float(r[other])
     return res
 
@@ -59,13 +57,13 @@ def indifference_set(pop: pd.DataFrame, metric: str) -> pd.DataFrame:
 
 
 def individual_calibration(table: pd.DataFrame, pop_opt: dict) -> pd.DataFrame:
-    """Para cada evento y metrica: (p1_m, p2_m) optimo sobre la grilla, error individual y error con parametros poblacionales."""
+    """Para cada evento y metrica: (A_m, lam_m) optimo sobre la grilla, error individual y error con parametros poblacionales."""
     rows = []
     for ev, d in table.groupby("event_id"):
         for m in METRICS:
             r = argmin_row(d, m)
-            pp = d[(np.isclose(d.p1, pop_opt[m]["p1"])) & (np.isclose(d.p2, pop_opt[m]["p2"]))].iloc[0]
-            rows.append({"event_id": int(ev), "metric": m, "p1_opt": float(r.p1), "p2_opt": float(r.p2),
+            pp = d[(np.isclose(d.A, pop_opt[m]["A"])) & (np.isclose(d.lam, pop_opt[m]["lam"]))].iloc[0]
+            rows.append({"event_id": int(ev), "metric": m, "A_opt": float(r.A), "lam_opt": float(r.lam),
                          "E_individual": float(r[m]), "E_population": float(pp[m])})
     out = pd.DataFrame(rows)
     out["gain_abs"] = out.E_population - out.E_individual
@@ -80,9 +78,9 @@ def individual_summary(ind: pd.DataFrame) -> pd.DataFrame:
                      "median_E_population": d.E_population.median(), "median_E_individual": d.E_individual.median(),
                      "mean_gain_abs": d.gain_abs.mean(), "mean_gain_rel_of_means": d.gain_abs.mean() / d.E_population.mean(),
                      "median_gain_rel": d.gain_rel.median(), "events_improved": int((d.gain_abs > 1e-12).sum()),
-                     "events": int(len(d)), "p1_opt_median": d.p1_opt.median(), "p2_opt_median": d.p2_opt.median(),
-                     "p1_opt_iqr": float(d.p1_opt.quantile(.75) - d.p1_opt.quantile(.25)),
-                     "p2_opt_iqr": float(d.p2_opt.quantile(.75) - d.p2_opt.quantile(.25))})
+                     "events": int(len(d)), "A_opt_median": d.A_opt.median(), "lam_opt_median": d.lam_opt.median(),
+                     "A_opt_iqr": float(d.A_opt.quantile(.75) - d.A_opt.quantile(.25)),
+                     "lam_opt_iqr": float(d.lam_opt.quantile(.75) - d.lam_opt.quantile(.25))})
     return pd.DataFrame(rows)
 
 
@@ -95,7 +93,7 @@ def cross_validation(table: pd.DataFrame, pop_opt: dict, seed: int, repeats: int
     if not 1 <= n_train < M:
         raise ValueError("trainFraction deja un conjunto vacio")
     rng = np.random.default_rng(seed)
-    piv = {m: table.pivot_table(index="event_id", columns=["p1", "p2"], values=m) for m in METRICS}
+    piv = {m: table.pivot_table(index="event_id", columns=["A", "lam"], values=m) for m in METRICS}
     rows, parts = [], []
     for rep in range(repeats):
         perm = rng.permutation(events)
@@ -103,11 +101,11 @@ def cross_validation(table: pd.DataFrame, pop_opt: dict, seed: int, repeats: int
         parts.append({"repeat": rep, "train": [int(x) for x in train], "validation": [int(x) for x in val]})
         for m in METRICS:
             tr_mean = piv[m].loc[train].mean(axis=0)            # solo entrenamiento
-            best = tr_mean.idxmin()                             # (p1, p2) elegido sin ver validacion
+            best = tr_mean.idxmin()                             # (A, lam) elegido sin ver validacion
             e_val = float(piv[m].loc[val, best].mean())
-            e_val_pop = float(piv[m].loc[val, (pop_opt[m]["p1"], pop_opt[m]["p2"])].mean())  # parametros de (b), calibrados con TODOS los eventos
+            e_val_pop = float(piv[m].loc[val, (pop_opt[m]["A"], pop_opt[m]["lam"])].mean())  # parametros de (b), calibrados con TODOS los eventos
             e_tr = float(tr_mean.min())
-            rows.append({"repeat": rep, "metric": m, "p1_train": best[0], "p2_train": best[1], "E_train": e_tr,
+            rows.append({"repeat": rep, "metric": m, "A_train": best[0], "lam_train": best[1], "E_train": e_tr,
                          "E_validation": e_val, "E_validation_with_population_params": e_val_pop})
     return pd.DataFrame(rows), parts
 
@@ -121,9 +119,9 @@ def cv_summary(cv: pd.DataFrame, pop_opt: dict) -> pd.DataFrame:
                      "E_validation_std": d.E_validation.std(),
                      "E_val_with_pop_params_mean": d.E_validation_with_population_params.mean(),
                      "mean_diff_vs_pop_params": diff.mean(), "frac_repeats_worse_than_pop": float((diff > 1e-12).mean()),
-                     "p1_train_median": d.p1_train.median(), "p2_train_median": d.p2_train.median(),
-                     "p1_train_iqr": float(d.p1_train.quantile(.75) - d.p1_train.quantile(.25)),
-                     "p2_train_iqr": float(d.p2_train.quantile(.75) - d.p2_train.quantile(.25))})
+                     "A_train_median": d.A_train.median(), "lam_train_median": d.lam_train.median(),
+                     "A_train_iqr": float(d.A_train.quantile(.75) - d.A_train.quantile(.25)),
+                     "lam_train_iqr": float(d.lam_train.quantile(.75) - d.lam_train.quantile(.25))})
     return pd.DataFrame(rows)
 
 

@@ -26,9 +26,9 @@ public class ConfigTest {
 
     @Test
     public void jsonAndTxtGiveSameEffectiveConfig() throws Exception {
-        Path j = write("c.json", "{\"eventId\":3,\"p1\":2.5,\"p2\":0.75,\"dt\":0.0002,\"seed\":7,"
+        Path j = write("c.json", "{\"eventId\":3,\"amplitude\":2.5,\"lambda\":0.75,\"dt\":0.0002,\"seed\":7,"
             + "\"physicalParameters\":{\"mass\":70,\"radius\":0.25},\"idOverrides\":{\"2\":{\"left\":\"1000\"}}}");
-        Path t = write("c.txt", "# comentario\neventId = 3\np1 = 2.5\np2 = 0.75   # inline\ndt = 0.0002\nseed = 7\n"
+        Path t = write("c.txt", "# comentario\neventId = 3\namplitude = 2.5\nlambda = 0.75   # inline\ndt = 0.0002\nseed = 7\n"
             + "physicalParameters.mass = 70\nphysicalParameters.radius = 0.25\nidOverrides.2.left = 1000\n");
         SimulationConfig a = SimulationConfig.fromFile(j);
         SimulationConfig b = SimulationConfig.fromFile(t);
@@ -39,7 +39,7 @@ public class ConfigTest {
 
     @Test
     public void defaultsAreRecordedInEffectiveConfig() throws Exception {
-        SimulationConfig c = SimulationConfig.fromFile(write("d.json", "{\"eventId\":1,\"p1\":1,\"p2\":1}"));
+        SimulationConfig c = SimulationConfig.fromFile(write("d.json", "{\"eventId\":1,\"amplitude\":1,\"lambda\":1}"));
         assertTrue(c.canonical().contains("physicalParameters.k=120000.0"));
         assertTrue(c.canonical().contains("physicalParameters.radius=0.25"));
     }
@@ -47,23 +47,23 @@ public class ConfigTest {
     @Test
     public void rejectsMissingRequired() throws Exception {
         try {
-            SimulationConfig.fromFile(write("m.json", "{\"eventId\":1,\"p1\":1}"));
+            SimulationConfig.fromFile(write("m.json", "{\"eventId\":1,\"amplitude\":1}"));
             fail();
         } catch (ConfigException e) {
-            assertTrue(e.getMessage().contains("p2"));
+            assertTrue(e.getMessage().contains("lambda"));
         }
     }
 
     @Test
     public void rejectsInvalidValuesAndUnknownKeys() throws Exception {
         String[] bad = {
-            "{\"eventId\":1,\"p1\":-1,\"p2\":1}",
-            "{\"eventId\":1,\"p1\":1,\"p2\":0}",
-            "{\"eventId\":1,\"p1\":1,\"p2\":1,\"dt\":0.5}",
-            "{\"eventId\":1,\"p1\":1,\"p2\":1,\"typo\":3}",
-            "{\"eventId\":1,\"p1\":\"abc\",\"p2\":1}",
-            "{\"eventId\":1,\"p1\":1,\"p2\":1,\"model\":\"CPM\"}",
-            "{\"eventId\":1,\"p1\":1,\"p2\":1",
+            "{\"eventId\":1,\"amplitude\":-1,\"lambda\":1}",
+            "{\"eventId\":1,\"amplitude\":1,\"lambda\":0}",
+            "{\"eventId\":1,\"amplitude\":1,\"lambda\":1,\"dt\":0.5}",
+            "{\"eventId\":1,\"amplitude\":1,\"lambda\":1,\"typo\":3}",
+            "{\"eventId\":1,\"amplitude\":\"abc\",\"lambda\":1}",
+            "{\"eventId\":1,\"amplitude\":1,\"lambda\":1,\"model\":\"CPM\"}",
+            "{\"eventId\":1,\"amplitude\":1,\"lambda\":1",
         };
         int i = 0;
         for (String s : bad) {

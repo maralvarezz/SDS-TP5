@@ -6,7 +6,7 @@
     python viz/run_analysis.py plots|animations --offline
 
 Etapas que no cambian la dinamica (graficos, animaciones, CV, agregaciones) leen los TXT existentes.
-Java solo se invoca para combinaciones (evento, p1, p2) sin TXT completo."""
+Java solo se invoca para combinaciones (evento, A, lam) sin TXT completo."""
 from __future__ import annotations
 
 import argparse
@@ -32,6 +32,8 @@ def main():
     ap.add_argument("--exclude", type=int, nargs="*", default=None, help="eventos a excluir (sobrescribe la config)")
     ap.add_argument("--tag", default="analysis", help="subcarpeta de output/ para los derivados")
     ap.add_argument("--threads", type=int, default=None)
+    ap.add_argument("--animation-events", nargs="+", default=None, metavar="N|all",
+                    help="eventos a animar / superponer (por defecto los de analysis_config.json); 'all' = todos")
     a = ap.parse_args()
 
     root = Path(a.root).resolve()
@@ -42,6 +44,8 @@ def main():
     timing = {}
 
     engine = Engine(root, cfg["baseConfig"], threads=a.threads, offline=a.offline)  # offline: nunca llama a Java
+    # animaciones: misma dinamica pero la corrida sigue hasta que ambos llegan al target + 2 s (NO se usa para las metricas)
+    anim_engine = Engine(root, cfg.get("animationConfig", cfg["baseConfig"]), threads=a.threads, offline=a.offline)
 
     if a.stage in ("all", "events"):
         if a.offline:
@@ -52,6 +56,12 @@ def main():
     ev_ids = [e for e in sorted(events) if e not in excl]
     print(f"Eventos: {len(ev_ids)} (excluidos: {sorted(excl)})")
     store = ErrorStore(root, root / cfg["eventsDir"])
+    if a.animation_events is None:
+        anim_events = list(cfg["animations"]["events"])
+    elif a.animation_events == ["all"]:
+        anim_events = list(ev_ids)
+    else:
+        anim_events = [int(v) for v in a.animation_events]
 
     table_path = out / "grid_errors.csv"
     if a.stage in ("all", "grid", "analyze", "plots"):
@@ -60,7 +70,9 @@ def main():
         table = evaluate(engine, store, points, ev_ids)
         table.to_csv(table_path, index=False)
         bl = cfg["baseline_no_avoidance"]
-        base = evaluate(engine, store, [(bl["p1_horizon_s"], bl["p2_clearance_m"])], ev_ids)
+        # referencia "sin elusion": otro archivo de configuracion (avoidance.enabled = false), mismo SFM y mismos eventos
+        base_engine = Engine(root, cfg["baselineConfig"], threads=a.threads, offline=a.offline)
+        base = evaluate(base_engine, store, [(bl["amplitude_m"], bl["lambda_m"])], ev_ids)
         base.to_csv(out / "baseline_no_avoidance.csv", index=False)
         timing["physical_simulation_s_this_invocation"] = engine.total_physical_seconds
         timing["errors_and_grid_s_total"] = time.perf_counter() - t0
@@ -106,16 +118,16 @@ def main():
         plots.individual_params(ind, opt, figs)
         plots.individual_errors(ind, figs)
         plots.cv_plot(cv, cvs, figs)
-        for e in cfg["animations"]["events"]:
+        for e in anim_events:
             if e in ev_ids:
                 _overlay(engine, store, events, e, opt["E1"], figs, f"evento{e:02d}_E1opt")
         timing["plots_s"] = time.perf_counter() - t0
 
     if a.stage in ("all", "animations"):
         t0 = time.perf_counter()
-        for e in cfg["animations"]["events"]:
+        for e in anim_events:
             if e in ev_ids:
-                run = _run_for(engine, store, e, opt["E1"])
+                run = _run_for(anim_engine, store, e, opt["E1"])
                 f = animations.animate_event(events[e], run, out / "animations" / f"evento{e:02d}_E1opt",
                                              fmt=cfg["animations"].get("format", "mp4"))
                 print("animacion:", f)
@@ -124,7 +136,7 @@ def main():
 
 
 def _run_for(engine, store, e, params):
-    plan = engine.request([(e, params["p1"], params["p2"])], log=lambda *_: None)
+    plan = engine.request([(e, params["A"], params["lam"])], log=lambda *_: None)
     return read_run(store.root / plan.iloc[0].path)
 
 

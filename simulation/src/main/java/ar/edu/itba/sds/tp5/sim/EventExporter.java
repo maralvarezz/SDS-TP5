@@ -25,7 +25,7 @@ public final class EventExporter {
         summary.add("event_id\tleft_id\tright_id\tstart_frame\tend_frame\tduration_s\tn_left\tn_right\tmissing_left\tmissing_right"
             + "\tmin_dist_recomputed_m\tmin_dist_leeme_m\tvd_left\tvd_right\tv0_speed_left\tv0_speed_right\tstatus\twarnings");
         for (int e = 1; e <= ctx.passages.size(); e++) {
-            SimulationConfig c = cfg.with(e, cfg.p1, cfg.p2);
+            SimulationConfig c = cfg.with(e, cfg.amplitude, cfg.spatialRange);
             Event ev;
             try {
                 ev = ctx.event(c);
@@ -53,6 +53,7 @@ public final class EventExporter {
         lines.add("# event_id: " + ev.eventId);
         lines.add("# source_dataset: " + ctx.dataPathRel + " sha256=" + ctx.dataset.sha256);
         lines.add("# source_readme: " + ctx.readmePathRel + " sha256=" + ctx.readmeSha256);
+        lines.add("# event_windows: " + ctx.windowsSha256 + " (ventana limpia; ver input/event_windows.json)");
         lines.add("# fps: " + ev.fps);
         lines.add("# start_frame: " + ev.startFrame);
         lines.add("# end_frame: " + ev.endFrame);

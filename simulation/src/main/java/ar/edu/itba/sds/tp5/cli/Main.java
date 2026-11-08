@@ -34,7 +34,7 @@ public final class Main {
         if (args.length == 0 || args[0].equals("-h") || args[0].equals("--help")) {
             System.out.println("Uso: sds-tp5.jar <run|batch|export-events> --config <archivo> [--root dir] [opciones]\n"
                 + "  run            ejecuta un evento (usa cache si el TXT ya esta completo)\n"
-                + "  batch          ejecuta tareas [evento,p1,p2]; opciones: --threads n --dry-run --result out.tsv\n"
+                + "  batch          ejecuta tareas [evento,A,lambda]; opciones: --threads n --dry-run --result out.tsv\n"
                 + "  export-events  exporta los eventos experimentales recortados; opcion: --out dir");
             return args.length == 0 ? 2 : 0;
         }
@@ -71,8 +71,8 @@ public final class Main {
                     ExperimentContext ctx = new ExperimentContext(root, cfg);
                     RunExecutor.Outcome o = RunExecutor.execute(cfg, ctx, false);
                     Manifest.merge(ctx.resolve(cfg.outputDir + "/manifest.tsv"), Collections.singletonList(
-                        new Manifest.Entry(o.runId, cfg.eventId, cfg.p1, cfg.p2, "ok", o.relPath, o.wallMs,
-                            SimulationConfig.ALGORITHM_VERSION)));
+                        new Manifest.Entry(o.runId, cfg.eventId, cfg.amplitude, cfg.spatialRange, "ok", o.relPath, o.wallMs,
+                            SimulationConfig.ALGORITHM_VERSION, config.getFileName().toString())));
                     System.out.println(o.status + " " + o.runId + " " + o.relPath);
                     return 0;
                 }

@@ -3,10 +3,63 @@
   "eventsDir": "output/events",
   "excludeEvents": [],
   "grid": {
-    "p1_horizon_s": [0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 5.0, 6.0, 8.0],
-    "p2_clearance_m": { "start": 0.30, "stop": 1.60, "step": 0.05 }
+    "amplitude_m": [
+      0.05,
+      0.1,
+      0.15,
+      0.2,
+      0.25,
+      0.3,
+      0.35,
+      0.4,
+      0.5,
+      0.6,
+      0.75,
+      1.0,
+      1.5,
+      2.0,
+      3.0,
+      5.0
+    ],
+    "lambda_m": [
+      0.25,
+      0.5,
+      0.75,
+      1.0,
+      1.25,
+      1.5,
+      2.0,
+      2.5,
+      3.0,
+      3.5,
+      4.0,
+      5.0,
+      6.0,
+      8.0,
+      10.0,
+      12.0,
+      16.0
+    ]
   },
-  "baseline_no_avoidance": { "p1_horizon_s": 1.0, "p2_clearance_m": 0.05 },
-  "crossValidation": { "seed": 20261103, "repeats": 200, "trainFraction": 0.7 },
-  "animations": { "events": [5, 3, 8, 17], "format": "mp4" }
+  "baseline_no_avoidance": {
+    "amplitude_m": 0.001,
+    "lambda_m": 0.001,
+    "note": "con avoidance.enabled=false A y lambda se ignoran; se usan valores fuera de la grilla para no colisionar en el manifiesto"
+  },
+  "crossValidation": {
+    "seed": 20261103,
+    "repeats": 200,
+    "trainFraction": 0.7
+  },
+  "animations": {
+    "events": [
+      5,
+      3,
+      8,
+      17
+    ],
+    "format": "mp4"
+  },
+  "baselineConfig": "input/base_config_no_avoidance.json",
+  "animationConfig": "input/base_config_animation.json"
 }

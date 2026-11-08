@@ -61,7 +61,7 @@ def test_event_and_population_aggregation():
     def mk(eid, off_a, off_b):
         ev = EventData(path=Path("x"), header={}, event_id=eid, fps=10.0, start_frame=0, end_frame=10,
                        agents={"a": track("a", t, t, 0 * t), "b": track("b", t, t, 0 * t + 5)})
-        run = Run(path=Path("r"), header={}, event_id=eid, p1=1, p2=1,
+        run = Run(path=Path("r"), header={}, event_id=eid, A=1, lam=1,
                   agents={"a": track("a", t, t + off_a, 0 * t), "b": track("b", t, t + off_b, 0 * t + 5)})
         return event_errors(ev, run)
 
@@ -85,10 +85,10 @@ def _table():
     rng = np.random.default_rng(0)
     rows = []
     for e in range(1, 11):
-        for p1 in (1.0, 2.0):
-            for p2 in (0.5, 0.7, 0.9):
-                base = (p2 - (0.5 + 0.02 * e)) ** 2 + 0.01 * p1
-                rows.append(dict(event_id=e, p1=p1, p2=p2, E1=base, E2=base / 2))
+        for A in (1.0, 2.0):
+            for lam in (0.5, 0.7, 0.9):
+                base = (lam - (0.5 + 0.02 * e)) ** 2 + 0.01 * A
+                rows.append(dict(event_id=e, A=A, lam=lam, E1=base, E2=base / 2))
     return pd.DataFrame(rows)
 
 
@@ -96,7 +96,7 @@ def test_population_and_individual_optimum():
     tab = _table()
     pop = ex.population_table(tab)
     opt = ex.population_optima(pop)
-    assert opt["E1"]["p1"] == 1.0 and opt["E1"]["p2"] == 0.7
+    assert opt["E1"]["A"] == 1.0 and opt["E1"]["lam"] == 0.7
     ind = ex.individual_calibration(tab, opt)
     assert (ind.E_individual <= ind.E_population + 1e-15).all()       # individualizar nunca empeora (misma grilla)
     assert set(ind.metric) == {"E1", "E2"}
@@ -111,11 +111,11 @@ def test_cross_validation_is_reproducible_and_has_no_leakage():
     for p in parts1:
         assert set(p["train"]).isdisjoint(p["validation"])
         assert sorted(p["train"] + p["validation"]) == list(range(1, 11))
-    # la eleccion depende solo de entrenamiento: alterar eventos de validacion no cambia (p1, p2) elegidos
+    # la eleccion depende solo de entrenamiento: alterar eventos de validacion no cambia (A, lam) elegidos
     rep0 = parts1[0]
     tab2 = tab.copy()
     tab2.loc[tab2.event_id.isin(rep0["validation"]), ["E1", "E2"]] *= 1000
     cv3, _ = ex.cross_validation(tab2, opt, seed=1, repeats=1, train_fraction=0.7)
-    a = cv1[cv1.repeat == 0].set_index("metric")[["p1_train", "p2_train"]]
-    b = cv3[cv3.repeat == 0].set_index("metric")[["p1_train", "p2_train"]]
+    a = cv1[cv1.repeat == 0].set_index("metric")[["A_train", "lam_train"]]
+    b = cv3[cv3.repeat == 0].set_index("metric")[["A_train", "lam_train"]]
     assert a.equals(b)

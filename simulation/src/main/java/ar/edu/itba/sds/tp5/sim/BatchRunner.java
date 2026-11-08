@@ -18,28 +18,28 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 
 /**
- * Ejecuta una lista de tareas (evento, p1, p2) sobre una configuracion base, reutilizando el cache:
+ * Ejecuta una lista de tareas (evento, A, lambda) sobre una configuracion base, reutilizando el cache:
  * una tarea cuyo TXT ya esta completo NO se vuelve a simular. Es el unico punto por el que Python pide corridas.
  *
- * Archivo batch (JSON): {"baseConfig": "input/base_config.json", "tasks": [[evento, p1, p2], ...]}
+ * Archivo batch (JSON): {"baseConfig": "input/base_config.json", "tasks": [[evento, A, lambda], ...]}
  */
 public final class BatchRunner {
 
     /** Una fila del resultado. */
     public static final class Row {
         public final int eventId;
-        public final double p1;
-        public final double p2;
+        public final double amplitude;
+        public final double lambda;
         public final String runId;
         public final String status; // cached | ran | missing | failed
         public final String path;
         public final long wallMs;
         public final String message;
 
-        Row(int e, double p1, double p2, String id, String st, String path, long w, String msg) {
+        Row(int e, double amplitude, double lambda, String id, String st, String path, long w, String msg) {
             this.eventId = e;
-            this.p1 = p1;
-            this.p2 = p2;
+            this.amplitude = amplitude;
+            this.lambda = lambda;
             this.runId = id;
             this.status = st;
             this.path = path;
@@ -65,7 +65,7 @@ public final class BatchRunner {
         Object base = top.get("baseConfig");
         Object tasks = top.get("tasks");
         if (!(base instanceof String) || !(tasks instanceof List)) {
-            throw new ConfigException("El batch requiere 'baseConfig' (string) y 'tasks' (lista de [evento, p1, p2])");
+            throw new ConfigException("El batch requiere 'baseConfig' (string) y 'tasks' (lista de [evento, A, lambda])");
         }
         Path basePath = Path.of((String) base);
         if (!basePath.isAbsolute()) {
@@ -77,7 +77,7 @@ public final class BatchRunner {
         List<double[]> list = new ArrayList<>();
         for (Object o : (List<Object>) tasks) {
             if (!(o instanceof List) || ((List<Object>) o).size() != 3) {
-                throw new ConfigException("Cada tarea debe ser [evento, p1, p2]");
+                throw new ConfigException("Cada tarea debe ser [evento, A, lambda]");
             }
             List<Object> t = (List<Object>) o;
             list.add(new double[] {(Double) t.get(0), (Double) t.get(1), (Double) t.get(2)});
@@ -103,8 +103,8 @@ public final class BatchRunner {
             List<Manifest.Entry> es = new ArrayList<>();
             for (Row r : rows) {
                 if (r.status.equals("ran") || r.status.equals("cached")) {
-                    es.add(new Manifest.Entry(r.runId, r.eventId, r.p1, r.p2, "ok", r.path, r.wallMs,
-                        SimulationConfig.ALGORITHM_VERSION));
+                    es.add(new Manifest.Entry(r.runId, r.eventId, r.amplitude, r.lambda, "ok", r.path, r.wallMs,
+                        SimulationConfig.ALGORITHM_VERSION, basePath.getFileName().toString()));
                 }
             }
             Manifest.merge(ctx.resolve(baseCfg.outputDir + "/manifest.tsv"), es);
@@ -112,22 +112,22 @@ public final class BatchRunner {
         return rows;
     }
 
-    private static Row one(SimulationConfig base, ExperimentContext ctx, int ev, double p1, double p2, boolean dry) {
+    private static Row one(SimulationConfig base, ExperimentContext ctx, int ev, double amplitude, double lambda, boolean dry) {
         try {
-            SimulationConfig cfg = base.with(ev, p1, p2);
+            SimulationConfig cfg = base.with(ev, amplitude, lambda);
             RunExecutor.Outcome o = RunExecutor.execute(cfg, ctx, dry);
-            return new Row(ev, p1, p2, o.runId, o.status, o.relPath, o.wallMs, "");
+            return new Row(ev, amplitude, lambda, o.runId, o.status, o.relPath, o.wallMs, "");
         } catch (Exception e) {
-            return new Row(ev, p1, p2, "", "failed", "", 0, String.valueOf(e.getMessage()).replace('\t', ' ').replace('\n', ' '));
+            return new Row(ev, amplitude, lambda, "", "failed", "", 0, String.valueOf(e.getMessage()).replace('\t', ' ').replace('\n', ' '));
         }
     }
 
     public static void writeResult(Path file, List<Row> rows) throws IOException {
         List<String> lines = new ArrayList<>();
-        lines.add("event_id\tp1\tp2\trun_id\tstatus\tpath\twall_ms\tmessage");
+        lines.add("event_id\tamplitude_m\tlambda_m\trun_id\tstatus\tpath\twall_ms\tmessage");
         for (Row r : rows) {
             lines.add(String.format(Locale.ROOT, "%d\t%s\t%s\t%s\t%s\t%s\t%d\t%s",
-                r.eventId, Double.toString(r.p1), Double.toString(r.p2), r.runId, r.status, r.path, r.wallMs, r.message));
+                r.eventId, Double.toString(r.amplitude), Double.toString(r.lambda), r.runId, r.status, r.path, r.wallMs, r.message));
         }
         Files.createDirectories(file.toAbsolutePath().getParent());
         Files.write(file, lines, StandardCharsets.UTF_8);

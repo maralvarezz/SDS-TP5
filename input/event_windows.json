@@ -1,0 +1,309 @@
+{
+ "description": "Ventanas LIMPIAS por evento (interseccion de las ventanas individuales). Generado por viz/make_event_windows.py; decision de limpieza de datos que reemplaza la ventana del LEEME.",
+ "windows": {
+  "1": {
+   "startFrame": 20068,
+   "endFrame": 20132,
+   "duration_s": 4.2612,
+   "individual": {
+    "3": {
+     "startFrame": 20068,
+     "endFrame": 20132
+    },
+    "36": {
+     "startFrame": 20068,
+     "endFrame": 20132
+    }
+   },
+   "note": "hueco de 32 cuadros del peaton 36 (4.26-6.46 s): ambos terminan antes del hueco; no se inventan datos"
+  },
+  "2": {
+   "startFrame": 20218,
+   "endFrame": 20320,
+   "duration_s": 6.7913,
+   "individual": {
+    "1000": {
+     "startFrame": 20218,
+     "endFrame": 20332
+    },
+    "25": {
+     "startFrame": 20218,
+     "endFrame": 20320
+    }
+   },
+   "note": "regla automatica (ver cabecera de make_event_windows.py)"
+  },
+  "3": {
+   "startFrame": 20381,
+   "endFrame": 20469,
+   "duration_s": 5.8592,
+   "individual": {
+    "43": {
+     "startFrame": 20381,
+     "endFrame": 20469
+    },
+    "1": {
+     "startFrame": 20381,
+     "endFrame": 20489
+    }
+   },
+   "note": "regla automatica (ver cabecera de make_event_windows.py)"
+  },
+  "4": {
+   "startFrame": 20544,
+   "endFrame": 20634,
+   "duration_s": 5.9923,
+   "individual": {
+    "10": {
+     "startFrame": 20544,
+     "endFrame": 20642
+    },
+    "5": {
+     "startFrame": 20544,
+     "endFrame": 20634
+    }
+   },
+   "note": "regla automatica (ver cabecera de make_event_windows.py)"
+  },
+  "5": {
+   "startFrame": 20692,
+   "endFrame": 20782,
+   "duration_s": 5.9923,
+   "individual": {
+    "4": {
+     "startFrame": 20692,
+     "endFrame": 20782
+    },
+    "12": {
+     "startFrame": 20692,
+     "endFrame": 20783
+    }
+   },
+   "note": "regla automatica (ver cabecera de make_event_windows.py)"
+  },
+  "6": {
+   "startFrame": 20826,
+   "endFrame": 20910,
+   "duration_s": 5.5928,
+   "individual": {
+    "9": {
+     "startFrame": 20826,
+     "endFrame": 20910
+    },
+    "6": {
+     "startFrame": 20824,
+     "endFrame": 20917
+    }
+   },
+   "note": "regla automatica (ver cabecera de make_event_windows.py)"
+  },
+  "7": {
+   "startFrame": 20956,
+   "endFrame": 21066,
+   "duration_s": 7.324,
+   "individual": {
+    "20": {
+     "startFrame": 20956,
+     "endFrame": 21066
+    },
+    "44": {
+     "startFrame": 20956,
+     "endFrame": 21077
+    }
+   },
+   "note": "regla automatica (ver cabecera de make_event_windows.py)"
+  },
+  "8": {
+   "startFrame": 21119,
+   "endFrame": 21215,
+   "duration_s": 6.3918,
+   "individual": {
+    "27": {
+     "startFrame": 21112,
+     "endFrame": 21221
+    },
+    "37": {
+     "startFrame": 21119,
+     "endFrame": 21215
+    }
+   },
+   "note": "regla automatica (ver cabecera de make_event_windows.py)"
+  },
+  "9": {
+   "startFrame": 21277,
+   "endFrame": 21376,
+   "duration_s": 6.5916,
+   "individual": {
+    "16": {
+     "startFrame": 21277,
+     "endFrame": 21379
+    },
+    "39": {
+     "startFrame": 21277,
+     "endFrame": 21376
+    }
+   },
+   "note": "regla automatica (ver cabecera de make_event_windows.py)"
+  },
+  "10": {
+   "startFrame": 21441,
+   "endFrame": 21552,
+   "duration_s": 7.3905,
+   "individual": {
+    "17": {
+     "startFrame": 21441,
+     "endFrame": 21552
+    },
+    "42": {
+     "startFrame": 21441,
+     "endFrame": 21578
+    }
+   },
+   "note": "regla automatica (ver cabecera de make_event_windows.py)"
+  },
+  "11": {
+   "startFrame": 21600,
+   "endFrame": 21715,
+   "duration_s": 7.6569,
+   "individual": {
+    "23": {
+     "startFrame": 21600,
+     "endFrame": 21715
+    },
+    "24": {
+     "startFrame": 21593,
+     "endFrame": 21716
+    }
+   },
+   "note": "regla automatica (ver cabecera de make_event_windows.py)"
+  },
+  "12": {
+   "startFrame": 21760,
+   "endFrame": 21877,
+   "duration_s": 7.79,
+   "individual": {
+    "22": {
+     "startFrame": 21760,
+     "endFrame": 21879
+    },
+    "18": {
+     "startFrame": 21760,
+     "endFrame": 21877
+    }
+   },
+   "note": "regla automatica (ver cabecera de make_event_windows.py)"
+  },
+  "13": {
+   "startFrame": 21958,
+   "endFrame": 22006,
+   "duration_s": 3.1959,
+   "individual": {
+    "15": {
+     "startFrame": 21953,
+     "endFrame": 22006
+    },
+    "35": {
+     "startFrame": 21958,
+     "endFrame": 22006
+    }
+   },
+   "note": "las trayectorias terminan antes de llegar al inicio del otro: final = ultimo cuadro, inicio = cercano al final del otro"
+  },
+  "14": {
+   "startFrame": 22073,
+   "endFrame": 22183,
+   "duration_s": 7.324,
+   "individual": {
+    "30": {
+     "startFrame": 22067,
+     "endFrame": 22193
+    },
+    "28": {
+     "startFrame": 22073,
+     "endFrame": 22183
+    }
+   },
+   "note": "regla automatica (ver cabecera de make_event_windows.py)"
+  },
+  "15": {
+   "startFrame": 22278,
+   "endFrame": 22393,
+   "duration_s": 7.6569,
+   "individual": {
+    "46": {
+     "startFrame": 22278,
+     "endFrame": 22406
+    },
+    "34": {
+     "startFrame": 22278,
+     "endFrame": 22393
+    }
+   },
+   "note": "regla automatica (ver cabecera de make_event_windows.py)"
+  },
+  "16": {
+   "startFrame": 22444,
+   "endFrame": 22564,
+   "duration_s": 7.9898,
+   "individual": {
+    "47": {
+     "startFrame": 22444,
+     "endFrame": 22575
+    },
+    "48": {
+     "startFrame": 22444,
+     "endFrame": 22564
+    }
+   },
+   "note": "regla automatica (ver cabecera de make_event_windows.py)"
+  },
+  "17": {
+   "startFrame": 22623,
+   "endFrame": 22706,
+   "duration_s": 5.5263,
+   "individual": {
+    "2": {
+     "startFrame": 22623,
+     "endFrame": 22706
+    },
+    "45": {
+     "startFrame": 22623,
+     "endFrame": 22720
+    }
+   },
+   "note": "regla automatica (ver cabecera de make_event_windows.py)"
+  },
+  "18": {
+   "startFrame": 22787,
+   "endFrame": 22890,
+   "duration_s": 6.8579,
+   "individual": {
+    "26": {
+     "startFrame": 22787,
+     "endFrame": 22915
+    },
+    "21": {
+     "startFrame": 22770,
+     "endFrame": 22890
+    }
+   },
+   "note": "peaton 26: sube al principio; arranca cuando termina de subir (cuadro 17)"
+  },
+  "19": {
+   "startFrame": 22954,
+   "endFrame": 23067,
+   "duration_s": 7.5237,
+   "individual": {
+    "29": {
+     "startFrame": 22940,
+     "endFrame": 23074
+    },
+    "38": {
+     "startFrame": 22954,
+     "endFrame": 23067
+    }
+   },
+   "note": "regla automatica (ver cabecera de make_event_windows.py)"
+  }
+ }
+}

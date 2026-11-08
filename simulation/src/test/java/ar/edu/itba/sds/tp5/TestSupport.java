@@ -28,8 +28,8 @@ public final class TestSupport {
             .getBytes(StandardCharsets.UTF_8));
     }
 
-    public static String configJson(double p1, double p2) {
-        return "{\"eventId\":1,\"p1\":" + p1 + ",\"p2\":" + p2 + ",\"dt\":0.0005,\"outputPerFrame\":3,"
+    public static String configJson(double amplitude, double lambda) {
+        return "{\"eventId\":1,\"amplitude\":" + amplitude + ",\"lambda\":" + lambda + ",\"dt\":0.0005,\"outputPerFrame\":3,"
             + "\"dataPath\":\"docs/data.txt\",\"readmePath\":\"docs/leeme.txt\",\"outputDir\":\"output\","
             + "\"idOverrides\":{\"1\":{\"left\":\"1\"}}}";
     }
