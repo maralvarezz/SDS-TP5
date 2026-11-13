@@ -123,6 +123,9 @@ def individual_params(ind, opt, out: Path):
         for c, (col, lab, key) in enumerate((("A_opt", P1L, "A"), ("lam_opt", P2L, "lam"))):
             ax = axs[r, c]
             ax.hist(d[col], bins=12, color=C[m], alpha=0.75, edgecolor="white")
+            mu, sd = d[col].mean(), d[col].std()          # desvio estandar muestral (ddof = 1) sobre los 19 eventos
+            ax.axvspan(mu - sd, mu + sd, color=C[m], alpha=0.18, lw=0, label="desvío (± 1 σ)")
+            ax.axvline(mu, color=C[m], lw=2, ls="--", label="promedio individual")
             ax.axvline(opt[m][key], color="k", lw=2, label="valor poblacional")
             ax.set_xlabel(lab)
             ax.set_ylabel("eventos")
@@ -134,25 +137,26 @@ def individual_params(ind, opt, out: Path):
 
 
 def individual_errors(ind, out: Path):
+    """Histograma del cociente E individual / E poblacional por evento, para cada metrica."""
     _style()
-    fig, axs = plt.subplots(1, 4, figsize=(15, 4.4))
-    for k, m in enumerate(("E1", "E2")):
+    fig, axs = plt.subplots(1, 2, figsize=(10, 4.4))
+    for ax, m in zip(axs, ("E1", "E2")):
         d = ind[ind.metric == m]
-        ax = axs[2 * k]
-        bp = ax.boxplot([d.E_population, d.E_individual], patch_artist=True)
-        ax.set_xticks([1, 2], ["parámetros\npoblacionales", "parámetros\nindividuales"])
-        for p in bp["boxes"]:
-            p.set_facecolor(C[m])
-            p.set_alpha(0.5)
-        ax.set_ylabel(LABEL[m].replace(r"\langle", "").replace(r"\rangle", ""))
-        ax.set_title(f"{NAME[m]}: distribución de $E_m$")
-        ax = axs[2 * k + 1]
-        lim = max(d.E_population.max(), d.E_individual.max()) * 1.05
-        ax.plot([0, lim], [0, lim], color="gray", lw=1)
-        ax.scatter(d.E_population, d.E_individual, color=C[m], s=36)
-        ax.set_xlabel("$E_m$ con parámetros poblacionales [m²]")
-        ax.set_ylabel("$E_m$ con parámetros individuales [m²]")
-        ax.set_title("por evento (debajo de la diagonal = mejora)")
+        # cociente por evento (<= 1: el individual nunca es peor; 1 = sin mejora)
+        ratio = d.E_individual / d.E_population
+        mu, sd = ratio.mean(), ratio.std()
+        w = 0.01 if ratio.min() > 0.8 else 0.05            # ancho de clase segun el rango de los cocientes
+        lo = np.floor(ratio.min() / w) * w
+        ax.hist(ratio, bins=np.arange(lo, 1.0 + 1e-9, w), color=C[m], alpha=0.75, edgecolor="white")
+        ax.axvspan(mu - sd, mu + sd, color=C[m], alpha=0.18, lw=0, label="desvío (± 1 σ)")
+        ax.axvline(mu, color=C[m], lw=2, ls="--", label="promedio")
+        ax.axvline(1.0, color="k", lw=1.5, label="sin mejora (cociente = 1)")
+        ax.set_xlim(lo - 2 * w, 1.0 + 0.6 * max(w, 0.02))
+        ax.set_xlabel("$E_m$ individual / $E_m$ poblacional (menor que 1 = mejora)")
+        ax.set_ylabel("eventos")
+        ax.set_title(NAME[m], fontsize=11)
+        ax.margins(y=0.3)
+        ax.legend(loc="upper left", fontsize=8.5)
     fig.tight_layout()
     _save(fig, out, "individual_errores")
 
