@@ -56,12 +56,15 @@ def indifference_set(pop: pd.DataFrame, metric: str) -> pd.DataFrame:
     return pop[pop[metric] <= best[metric] + best[metric + "_sem"]]
 
 
-def individual_calibration(table: pd.DataFrame, pop_opt: dict) -> pd.DataFrame:
-    """Para cada evento y metrica: (A_m, lam_m) optimo sobre la grilla, error individual y error con parametros poblacionales."""
+def individual_calibration(table: pd.DataFrame, pop_opt: dict, fix_lambda: bool = False) -> pd.DataFrame:
+    """Para cada evento y metrica: optimo sobre la grilla, error individual y error con parametros poblacionales.
+    fix_lambda=False: se optimiza el par (A_m, lam_m) (lectura literal de la consigna).
+    fix_lambda=True: lam se fija en el optimo POBLACIONAL de esa metrica (ítem b) y solo se optimiza A_m por evento."""
     rows = []
     for ev, d in table.groupby("event_id"):
         for m in METRICS:
-            r = argmin_row(d, m)
+            dm = d[np.isclose(d.lam, pop_opt[m]["lam"])] if fix_lambda else d
+            r = argmin_row(dm, m)
             pp = d[(np.isclose(d.A, pop_opt[m]["A"])) & (np.isclose(d.lam, pop_opt[m]["lam"]))].iloc[0]
             rows.append({"event_id": int(ev), "metric": m, "A_opt": float(r.A), "lam_opt": float(r.lam),
                          "E_individual": float(r[m]), "E_population": float(pp[m])})

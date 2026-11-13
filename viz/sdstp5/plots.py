@@ -32,29 +32,40 @@ def _save(fig, out: Path, name: str):
     plt.close(fig)
 
 
-def surface_heatmaps(pop, opt, out: Path, baseline=None):
+def _edges(v):
+    """Bordes de celda para una grilla uniforme (centros v)."""
+    v = np.asarray(v, float)
+    h = np.diff(v).mean()
+    return np.concatenate([v - h / 2, [v[-1] + h / 2]])
+
+
+def surface_heatmaps(pop, opt, out: Path, baseline=None, lam_max=None, region=None):
+    """lam_max: solo recorta lo que se MUESTRA (la calibracion usa toda la grilla). region: {metrica: DataFrame A, lam}
+    con el conjunto de indiferencia (se marca con puntos)."""
     _style()
+    if lam_max is not None:
+        pop = pop[pop.lam <= lam_max + 1e-9]
     A = np.sort(pop.A.unique())
     lam = np.sort(pop.lam.unique())
-    fig, axs = plt.subplots(1, 2, figsize=(12, 4.6))
+    fig, axs = plt.subplots(1, 2, figsize=(12.5, 5.4))
     for ax, m in zip(axs, ("E1", "E2")):
         Z = pop.pivot(index="A", columns="lam", values=m).loc[A, lam].values
-        im = ax.pcolormesh(np.arange(len(lam)), np.arange(len(A)), Z, shading="nearest", cmap="viridis_r")
-        ax.set_yticks(np.arange(len(A)))
-        ax.set_yticklabels([f"{v:g}" for v in A])
-        ax.set_xticks(np.arange(len(lam)))
-        ax.set_xticklabels([f"{v:g}" for v in lam], rotation=60)
+        # ejes lineales y a escala: la grilla es uniforme en A y en lambda
+        im = ax.pcolormesh(_edges(lam), _edges(A), Z, shading="flat", cmap="viridis_r")
         ax.grid(False)
-        i = int(np.where(np.isclose(A, opt[m]["A"]))[0][0])
-        j = int(np.where(np.isclose(lam, opt[m]["lam"]))[0][0])
-        ax.plot(j, i, marker="*", ms=16, color="white", mec="black", label=f"óptimo (A = {opt[m]['A']:g} m, λ = {opt[m]['lam']:g} m)")
+        if region is not None and m in region:
+            r = region[m][region[m].lam <= lam.max() + 1e-9]
+            ax.plot(r.lam, r.A, ".", ms=4, color="k", alpha=0.7, label=f"dentro de 1 error estándar del óptimo ({len(r)} pares)")
+        ax.plot(opt[m]["lam"], opt[m]["A"], marker="o", ms=8, color="white", mec="black", mew=1.5, ls="",
+                label="óptimo")
         ax.set_xlabel(P2L)
         ax.set_ylabel(P1L)
         ax.set_title(NAME[m])
-        ax.legend(loc="upper right")
+        ax.legend(loc="upper left", fontsize=10, frameon=True, framealpha=0.6, facecolor="white", edgecolor="none")
         cb = fig.colorbar(im, ax=ax)
         cb.set_label(LABEL[m])
-    fig.suptitle("Calibración poblacional: error en la grilla (A, λ); ejes en categorías (no a escala)")
+    fig.suptitle("Calibración poblacional: error en la grilla uniforme (A, λ)")
+    fig.tight_layout()
     _save(fig, out, "poblacional_superficie_heatmap")
 
     fig = plt.figure(figsize=(12, 5))
@@ -84,13 +95,7 @@ def cuts(pop, opt, out: Path, baseline=None):
         ax.axvline(o["A"], color="k", ls=":", lw=1)
         if baseline is not None:
             ax.axhline(baseline[m], color="gray", ls="--", lw=1, label="sin elusión (referencia)")
-        # A en escala logaritmica (la grilla es geometrica); lam queda lineal
-        ax.set_xscale("log")
-        ticks = [t for t in (0.05, 0.1, 0.2, 0.5, 1, 2, 5) if a.A.min() * 0.99 <= t <= a.A.max() * 1.01]
-        ax.set_xticks(ticks)
-        ax.set_xticklabels([f"{t:g}" for t in ticks])
-        ax.xaxis.set_minor_formatter(matplotlib.ticker.NullFormatter())
-        ax.set_xlabel(P1L + " (escala log)")
+        ax.set_xlabel(P1L)
         ax.set_ylabel(LABEL[m])
         ax.set_title(f"{NAME[m]}: corte en A")
         ax.legend(loc="best")
@@ -110,25 +115,46 @@ def cuts(pop, opt, out: Path, baseline=None):
 
 
 def individual_params(ind, opt, out: Path):
+    """Distribucion de los parametros optimos individuales. Si lam esta fijo (= optimo poblacional) solo se muestra A."""
     _style()
-    fig, axs = plt.subplots(2, 3, figsize=(13, 7))
+    lam_fixed = ind.groupby("metric").lam_opt.nunique().max() == 1
+    ncol = 2 if lam_fixed else 3
+    fig, axs = plt.subplots(2, ncol, figsize=(4.8 * ncol + 1, 7))
     for r, m in enumerate(("E1", "E2")):
-        d = ind[ind.metric == m]
-        for c, (col, lab) in enumerate((("A_opt", P1L), ("lam_opt", P2L))):
-            ax = axs[r, c]
-            ax.hist(d[col], bins=12, color=C[m], alpha=0.75, edgecolor="white")
-            ax.axvline(opt[m]["A" if c == 0 else "lam"], color="k", lw=2, label="valor poblacional")
-            ax.set_xlabel(lab)
+        d = ind[ind.metric == m].sort_values("event_id")
+        ax = axs[r, 0]
+        ax.hist(d.A_opt, bins=np.arange(d.A_opt.min() - 0.025, d.A_opt.max() + 0.06, 0.05) if lam_fixed else 12,
+                color=C[m], alpha=0.75, edgecolor="white")
+        ax.axvline(opt[m]["A"], color="k", lw=2, label=f"valor poblacional (A = {opt[m]['A']:g} m)")
+        ax.set_xlabel(P1L)
+        ax.set_ylabel("eventos")
+        ax.set_title(f"{NAME[m]}: A óptimo individual" + (f" (λ fijo = {opt[m]['lam']:g} m)" if lam_fixed else ""), fontsize=10)
+        ax.margins(y=0.3)
+        ax.legend(loc="upper left", fontsize=8.5)
+        if lam_fixed:
+            ax = axs[r, 1]
+            ax.bar(d.event_id.astype(str), d.A_opt, color=C[m], alpha=0.75)
+            ax.axhline(opt[m]["A"], color="k", lw=2, label="valor poblacional")
+            ax.set_xlabel("evento")
+            ax.set_ylabel(P1L)
+            ax.set_title("A óptimo por evento")
+            ax.margins(y=0.3)
+            ax.legend(loc="upper left", fontsize=8.5, ncol=1)
+        else:
+            ax = axs[r, 1]
+            ax.hist(d.lam_opt, bins=12, color=C[m], alpha=0.75, edgecolor="white")
+            ax.axvline(opt[m]["lam"], color="k", lw=2, label="valor poblacional")
+            ax.set_xlabel(P2L)
             ax.set_ylabel("eventos")
-            ax.set_title(f"{NAME[m]}: {col}")
+            ax.set_title(f"{NAME[m]}: λ óptimo individual")
             ax.legend()
-        ax = axs[r, 2]
-        ax.scatter(d.lam_opt, d.A_opt, color=C[m], s=36)
-        ax.scatter([opt[m]["lam"]], [opt[m]["A"]], marker="*", s=220, color="k", label="poblacional")
-        ax.set_xlabel(P2L)
-        ax.set_ylabel(P1L)
-        ax.set_title("óptimos individuales")
-        ax.legend()
+            ax = axs[r, 2]
+            ax.scatter(d.lam_opt, d.A_opt, color=C[m], s=36)
+            ax.scatter([opt[m]["lam"]], [opt[m]["A"]], marker="*", s=220, color="k", label="poblacional")
+            ax.set_xlabel(P2L)
+            ax.set_ylabel(P1L)
+            ax.set_title("óptimos individuales")
+            ax.legend()
     fig.tight_layout()
     _save(fig, out, "individual_parametros")
 
@@ -194,7 +220,8 @@ def event_overlay(event, run, out: Path, name: str):
     ax.set_aspect("equal", adjustable="datalim")
     ax.set_xlabel("x [m]")
     ax.set_ylabel("y [m]")
-    ax.set_title(f"Evento {event.event_id}: A = {run.A:g} m, λ = {run.lam:g} m (■ inicio, ★ target final)")
+    ax.set_title(f"Evento {event.event_id}: A = {run.A:g} m, λ = {run.lam:g} m (■ inicio, ★ target final); "
+                 "el simulado se muestra hasta que llega al target")
     ax.legend(fontsize=8)
     ax = axs[1]
     for k, (aid, ex) in enumerate(event.agents.items()):
@@ -213,9 +240,44 @@ def event_overlay(event, run, out: Path, name: str):
     ax.plot(a.t[ia], np.hypot(a.x[ia] - b.x[ib], a.y[ia] - b.y[ib]), "o", ms=2.5, color=C["exp"], label="experimental")
     ax.plot(sa.t, np.hypot(sa.x - sb.x, sa.y - sb.y), color=C["sim"], label="simulado")
     ax.axhline(0.5, color="gray", ls="--", lw=1, label="contacto (2r = 0.5 m)")
+    ax.axvline(a.t[-1], color="k", ls=":", lw=1, label="fin del evento experimental")
     ax.set_xlabel("t [s]")
     ax.set_ylabel("distancia entre peatones [m]")
     ax.set_title("Distancia relativa")
     ax.legend()
     fig.tight_layout()
+    _save(fig, out, name)
+
+
+def region_trajectories(events, runs, pairs, opt, m, out: Path, name: str):
+    """Para varios eventos: trayectoria experimental y simuladas de TODOS los pares (A, lam) del conjunto de indiferencia
+    de la metrica m (dentro de 1 error estandar del optimo). El optimo se resalta. runs: {(evento, A, lam): Run}."""
+    _style()
+    n = len(events)
+    cols = 2
+    rows = int(np.ceil(n / cols))
+    fig, axs = plt.subplots(rows, cols, figsize=(6.6 * cols, 3.2 * rows), squeeze=False)
+    o = (round(opt[m]["A"], 6), round(opt[m]["lam"], 6))
+    for ax, ev in zip(axs.ravel(), events):
+        for k, (aid, ex) in enumerate(ev.agents.items()):
+            for pr in pairs.itertuples():
+                run = runs[(ev.event_id, float(pr.A), float(pr.lam))]
+                sm = run.agents[aid]
+                ax.plot(sm.x, sm.y, "-", lw=0.8, color=C[m], alpha=0.25,
+                        label=f"simulado, {len(pairs)} pares de la región óptima" if (k == 0 and pr.Index == pairs.index[0]) else None)
+            so = runs[(ev.event_id, *o)].agents[aid]
+            ax.plot(so.x, so.y, "-", lw=2.0, color="k", label=f"simulado con el óptimo (A = {o[0]:g}, λ = {o[1]:g})" if k == 0 else None)
+            ax.plot(ex.x, ex.y, "o", ms=2.5, color=C["exp"], alpha=0.6, label="experimental" if k == 0 else None)
+            ax.plot(ex.x[0], ex.y[0], "s", color="k")
+            ax.plot(ex.x[-1], ex.y[-1], "*", color="k", ms=10)
+        ax.set_title(f"Evento {ev.event_id}")
+        ax.set_aspect("equal", adjustable="datalim")
+        ax.set_xlabel("x [m]")
+        ax.set_ylabel("y [m]")
+    for ax in axs.ravel()[n:]:
+        ax.axis("off")
+    h, l = axs.ravel()[0].get_legend_handles_labels()
+    fig.legend(h, l, loc="lower center", ncol=3, fontsize=9, bbox_to_anchor=(0.5, -0.02))
+    fig.suptitle(f"{NAME[m]}: trayectorias de los pares dentro de 1 error estándar del óptimo (■ inicio, ★ target)")
+    fig.tight_layout(rect=(0, 0.04, 1, 1))
     _save(fig, out, name)

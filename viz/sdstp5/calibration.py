@@ -101,9 +101,15 @@ class Engine:
         if (plan.status == "failed").any():
             bad = plan[plan.status == "failed"].iloc[0]
             raise EngineError(f"Tarea invalida ({bad.event_id}, {bad.A}, {bad.lam}): {bad.message}")
-        missing = plan[plan.status == "missing"]
+        # "cached" = el TXT existe pero puede no estar anotado en el manifiesto (el modo --offline lo necesita): se las pasa
+        # de nuevo al motor, que no las vuelve a simular y solo las registra
+        mf = self.root / "output" / "manifest.tsv"
+        known = set(pd.read_csv(mf, sep="\t", usecols=["run_id"]).run_id) if mf.is_file() else set()
+        missing = plan[(plan.status == "missing") | ((plan.status == "cached") & ~plan.run_id.isin(known))]
         if len(missing):
-            log(f"[motor] {len(missing)} corridas faltantes de {len(plan)}; simulando solo esas")
+            n_sim = int((missing.status == "missing").sum())
+            log(f"[motor] {n_sim} corridas faltantes de {len(plan)}; simulando solo esas"
+                + (f" (+{len(missing) - n_sim} ya simuladas, solo se registran en el manifiesto)" if len(missing) > n_sim else ""))
             sub = [[int(r.event_id), float(r.A), float(r.lam)] for r in missing.itertuples()]
             sub_tag = hashlib.sha1(json.dumps(sub).encode()).hexdigest()[:12]
             sb = bdir / f"batch_missing_{sub_tag}.json"

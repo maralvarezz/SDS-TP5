@@ -93,7 +93,11 @@ def main():
                                                       "events": ev_ids, "excluded": sorted(excl)})
         for m in ex.METRICS:
             ex.indifference_set(pop, m).to_csv(out / f"indifference_set_{m}.csv", index=False)
-        ind = ex.individual_calibration(table, opt)
+        # item c: lam se fija en el optimo poblacional (item b) y se calibra A por evento; la version literal (A y lam por evento)
+        # se guarda aparte como referencia
+        fix = bool(cfg.get("individual", {}).get("fixLambdaToPopulation", False))
+        ex.individual_calibration(table, opt, fix_lambda=False).to_csv(out / "individual_calibration_2d.csv", index=False)
+        ind = ex.individual_calibration(table, opt, fix_lambda=fix)
         ind.to_csv(out / "individual_calibration.csv", index=False)
         ex.individual_summary(ind).to_csv(out / "individual_summary.csv", index=False)
         cvc = cfg["crossValidation"]
@@ -113,14 +117,24 @@ def main():
         cv = pd.read_csv(out / "cross_validation.csv")
         cvs = pd.read_csv(out / "cross_validation_summary.csv")
         figs = out / "figures"
-        plots.surface_heatmaps(pop, opt, figs)
+        lam_max = cfg.get("plots", {}).get("heatmapLambdaMax")
+        region = {m: pd.read_csv(out / f"indifference_set_{m}.csv") for m in ex.METRICS}
+        plots.surface_heatmaps(pop, opt, figs, lam_max=lam_max)
         plots.cuts(pop, opt, figs, baseline)
         plots.individual_params(ind, opt, figs)
         plots.individual_errors(ind, figs)
         plots.cv_plot(cv, cvs, figs)
         for e in anim_events:
             if e in ev_ids:
-                _overlay(engine, store, events, e, opt["E1"], figs, f"evento{e:02d}_E1opt")
+                _overlay(anim_engine, store, events, e, opt["E1"], figs, f"evento{e:02d}_E1opt")
+        # trayectorias de los pares de la region optima (corridas extendidas, como las superposiciones por evento)
+        reg_events = [e for e in cfg.get("plots", {}).get("regionEvents", cfg["animations"]["events"]) if e in ev_ids]
+        for m in ex.METRICS:
+            pairs = region[m]
+            tasks = [(e, float(r.A), float(r.lam)) for e in reg_events for r in pairs.itertuples()]
+            plan = anim_engine.request(tasks, log=lambda *_: None)   # corridas extendidas: llegan al target
+            runs = {(int(r.event_id), float(r.A), float(r.lam)): read_run(store.root / r.path) for r in plan.itertuples()}
+            plots.region_trajectories([events[e] for e in reg_events], runs, pairs, opt, m, figs, f"region_optima_trayectorias_{m}")
         timing["plots_s"] = time.perf_counter() - t0
 
     if a.stage in ("all", "animations"):
@@ -141,6 +155,8 @@ def _run_for(engine, store, e, params):
 
 
 def _overlay(engine, store, events, e, params, figs, name):
+    # corrida extendida (config de animacion): el simulado sigue hasta llegar al target; el error solo se evalua en los
+    # instantes experimentales, asi que el panel de error no cambia
     plots.event_overlay(events[e], _run_for(engine, store, e, params), figs, name)
 
 
