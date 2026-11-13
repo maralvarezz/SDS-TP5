@@ -94,7 +94,7 @@ def cuts(pop, opt, out: Path, baseline=None):
         ax.errorbar(a.A, a[m], yerr=a[m + "_sem"], marker="o", ms=4, capsize=3, color=C[m], label=f"λ = {o['lam']:g} m fijo")
         ax.axvline(o["A"], color="k", ls=":", lw=1)
         if baseline is not None:
-            ax.axhline(baseline[m], color="gray", ls="--", lw=1, label="sin elusión (referencia)")
+            ax.axhline(baseline[m], color="gray", ls="--", lw=1, label="sin elusión")
         ax.set_xlabel(P1L)
         ax.set_ylabel(LABEL[m])
         ax.set_title(f"{NAME[m]}: corte en A")
@@ -104,7 +104,7 @@ def cuts(pop, opt, out: Path, baseline=None):
         ax.errorbar(b.lam, b[m], yerr=b[m + "_sem"], marker="o", ms=4, capsize=3, color=C[m], label=f"A = {o['A']:g} m fijo")
         ax.axvline(o["lam"], color="k", ls=":", lw=1)
         if baseline is not None:
-            ax.axhline(baseline[m], color="gray", ls="--", lw=1, label="sin elusión (referencia)")
+            ax.axhline(baseline[m], color="gray", ls="--", lw=1, label="sin elusión")
         ax.set_xlabel(P2L)
         ax.set_ylabel(LABEL[m])
         ax.set_title(f"{NAME[m]}: corte en λ")
@@ -118,19 +118,26 @@ def individual_params(ind, opt, out: Path):
     """Distribucion de los parametros optimos individuales (A y lam) por metrica, con el valor poblacional marcado."""
     _style()
     fig, axs = plt.subplots(2, 2, figsize=(10, 7))
+    # columna de A: misma escala (y mismas clases) en ambas metricas para poder compararlas
+    a_lo, a_hi = ind.A_opt.min(), ind.A_opt.max()
+    a_w = (a_hi - a_lo) / 10                              # ancho de clase comun; clases centradas en los valores
+    a_bins = a_lo - a_w / 2 + a_w * np.arange(11 + 1)
     for r, m in enumerate(("E1", "E2")):
         d = ind[ind.metric == m]
         for c, (col, lab, key) in enumerate((("A_opt", P1L, "A"), ("lam_opt", P2L, "lam"))):
             ax = axs[r, c]
-            ax.hist(d[col], bins=12, color=C[m], alpha=0.75, edgecolor="white")
+            ax.hist(d[col], bins=a_bins if c == 0 else 12, color=C[m], alpha=0.75, edgecolor="white")
+            if c == 0:
+                ax.set_xlim(a_bins[0] - a_w, a_bins[-1] + a_w)
             mu, sd = d[col].mean(), d[col].std()          # desvio estandar muestral (ddof = 1) sobre los 19 eventos
-            ax.axvspan(mu - sd, mu + sd, color=C[m], alpha=0.18, lw=0, label="desvío (± 1 σ)")
+            ax.axvspan(mu - sd, mu + sd, color=C[m], alpha=0.18, lw=0)
             ax.axvline(mu, color=C[m], lw=2, ls="--", label="promedio individual")
             ax.axvline(opt[m][key], color="k", lw=2, label="valor poblacional")
             ax.set_xlabel(lab)
             ax.set_ylabel("eventos")
             ax.set_title(f"{NAME[m]}: {key if key == 'A' else 'λ'} óptimo individual", fontsize=10)
             ax.margins(y=0.25)
+            ax.yaxis.set_major_locator(plt.MaxNLocator(integer=True))     # cuentas de eventos: solo enteros
             ax.legend(loc="upper left" if c == 0 else "upper right", fontsize=8.5)
     fig.tight_layout()
     _save(fig, out, "individual_parametros")
@@ -148,9 +155,9 @@ def individual_errors(ind, out: Path):
         w = 0.01 if ratio.min() > 0.8 else 0.05            # ancho de clase segun el rango de los cocientes
         lo = np.floor(ratio.min() / w) * w
         ax.hist(ratio, bins=np.arange(lo, 1.0 + 1e-9, w), color=C[m], alpha=0.75, edgecolor="white")
-        ax.axvspan(mu - sd, mu + sd, color=C[m], alpha=0.18, lw=0, label="desvío (± 1 σ)")
+        ax.axvspan(mu - sd, mu + sd, color=C[m], alpha=0.18, lw=0)
         ax.axvline(mu, color=C[m], lw=2, ls="--", label="promedio")
-        ax.axvline(1.0, color="k", lw=1.5, label="sin mejora (cociente = 1)")
+        ax.axvline(1.0, color="k", lw=1.5, label="valor poblacional")
         ax.set_xlim(lo - 2 * w, 1.0 + 0.6 * max(w, 0.02))
         ax.set_xlabel("$E_m$ individual / $E_m$ poblacional (menor que 1 = mejora)")
         ax.set_ylabel("eventos")

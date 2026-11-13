@@ -92,15 +92,15 @@ Además, por evento se genera `eventoNN_pares_zona_optima` (sin espacio en el no
 
 ## Hallazgos de la calibración con la elusión continua (a revisar)
 
-- **Grilla uniforme** (ejes lineales a escala): `A` de 0.05 a 1.5 m en pasos de 0.05 (30 valores) × `λ` de 1 a 30 m en pasos de 1 (30 valores) = 900 combinaciones × 19 eventos.
+- **Grilla uniforme** (ejes lineales a escala): `A` de 0.05 a 1.5 m en pasos de 0.05 (30 valores) × `λ` de 1 a 16 m en pasos de 1 (16 valores) = 480 combinaciones × 19 eventos.
   Una grilla previa con `λ` hasta 16 m dejaba el mínimo en el borde; se probó hasta `λ = 100 m` y el error **sube** de nuevo, así que el óptimo es interior.
-- **Figuras de la región óptima**: `poblacional_superficie_heatmap.png` muestra solo `λ ≤ 16 m` (`plots.heatmapLambdaMax` en `analysis_config.json`; recorta lo que se dibuja, la calibración usa toda la grilla), con un único punto en el óptimo; `region_optima_trayectorias_E1/E2.png` superpone, en 4 eventos (`plots.regionEvents`), la trayectoria experimental con las simuladas de todos esos pares (corridas extendidas hasta el target).
+- **Figuras de la región óptima**: `poblacional_superficie_heatmap.png` muestra `λ ∈ [1, 16] m`, que es el rango de toda la calibración (`grid.lambda_m` en `analysis_config.json`: poblacional, individual y validación cruzada usan la misma grilla), con un único punto en el óptimo; `region_optima_trayectorias_E1/E2.png` superpone, en 4 eventos (`plots.regionEvents`), la trayectoria experimental con las simuladas de todos esos pares (corridas extendidas hasta el target).
 - **Calibración individual (ítem c)**: por evento y por métrica se optimiza el par `(A_m, λ_m)` (ambos libres) sobre la misma grilla y se compara con el óptimo poblacional del ítem b (`A = 0.15 m, λ = 13 m`, igual para ambas métricas).
   La ganancia al individualizar es chica (⟨E1⟩ 0.3058 → 0.2987; ⟨E2⟩ 0.0519 → 0.0477).
   La validación cruzada (ítem d) calibra `(A, λ)` solo con los eventos de entrenamiento.
 - **Óptimo poblacional** (ambas métricas coinciden): `A = 0.15 m, λ = 13 m` (⟨E1⟩ = 0.306 m², ⟨E2⟩ = 0.052 m²). Con `A = 0.15`, ⟨E1⟩ pasa de 0.306 (`λ = 13`) a 0.319 (`λ = 30`).
 - **El valle es muy plano**: para `λ ≳ 10` el error casi no cambia (menos de 1 error estándar ≈ 0.046), y el conjunto de indiferencia (`indifference_set_*.csv`: pares dentro de 1 error estándar del mínimo)
-  tiene 51 pares (E1) y 34 pares (E2), con `A` ∈ [0.15, 0.6] y `λ` ∈ [2, 30]. Con `λ` grande `a(d)` casi no depende de `d` (giro chico y casi constante a la derecha), de modo que los datos
+  tiene 30 pares (E1) y 20 pares (E2), con `A` ∈ [0.15, 0.6] y `λ` ∈ [2, 16]. Con `λ` grande `a(d)` casi no depende de `d` (giro chico y casi constante a la derecha), de modo que los datos
   **no identifican bien** la dependencia con la distancia. Hay que informar esa región de indiferencia, no solo el mínimo.
 - **Validación física** (ítem 12 de la especificación): la fórmula no evita colisiones por construcción. En el óptimo la distancia mínima centro a centro es ≥ 0.504 m en los 19 eventos (sin solapamiento, 2r = 0.5 m);
   en la grilla completa ~9 % de las corridas tienen solapamiento, casi todas con `A` chica (mediana 0.1 m: la elusión no alcanza para evitar el cruce).
@@ -111,7 +111,7 @@ Además, por evento se genera `eventoNN_pares_zona_optima` (sin espacio en el no
 `run_id` = SHA-256 (16 hex) de versión del algoritmo + checksums de dataset y LEEME + IDs resueltos + ventana + configuración efectiva normalizada (sin rutas).
 Un `.txt` solo es cache hit si termina con `# END status=ok` (escritura a `.tmp` + rename atómico). `output/manifest.tsv` indexa las corridas.
 Python pide corridas al motor (tareas `[evento, A, lambda]`) en modo `batch` (plan `--dry-run` → simula solo las faltantes). Errores derivados: `output/derived/errors.tsv`.
-La búsqueda de óptimos (poblacional, individual y validación cruzada) usa la **misma grilla** (30 valores de `A` ∈ [0.05, 1.5] m × 30 de `λ` ∈ [1, 30] m, uniforme), definida en `input/analysis_config.json`.
+La búsqueda de óptimos (poblacional, individual y validación cruzada) usa la **misma grilla** (30 valores de `A` ∈ [0.05, 1.5] m × 16 de `λ` ∈ [1, 16] m, uniforme), definida en `input/analysis_config.json`.
 Semillas y particiones de validación cruzada: `output/<tag>/cross_validation_partitions.json`.
 
 ## Entrega
