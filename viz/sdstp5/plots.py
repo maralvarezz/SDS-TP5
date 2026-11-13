@@ -14,10 +14,12 @@ from .observables import sim_at_experimental_frames
 
 # Paleta apta daltonismo (Okabe-Ito): una por metrica, la misma en todas las figuras.
 C = {"E1": "#0072B2", "E2": "#D55E00", "exp": "#222222", "sim": "#0072B2", "grid": "#d9d9d9"}
-LABEL = {"E1": r"$\langle E^{(1)}\rangle$ [m$^2$]", "E2": r"$\langle E^{(2)}\rangle$ [m$^2$]"}
+LABEL = {"E1": r"$\langle E^{(1)}\rangle$ (m$^2$)", "E2": r"$\langle E^{(2)}\rangle$ (m$^2$)"}
 NAME = {"E1": "Métrica 1 (iguales tiempos)", "E2": "Métrica 2 (punto más cercano)"}
-P1L = "A: amplitud de elusión [m]"
-P2L = "λ: alcance espacial [m]"
+SHORT = {"E1": "Métrica 1", "E2": "Métrica 2"}
+EK = {"E1": "(1)", "E2": "(2)"}
+P1L = r"$A$ (m)"
+P2L = r"$\lambda$ (m)"
 
 
 def _style():
@@ -60,11 +62,9 @@ def surface_heatmaps(pop, opt, out: Path, baseline=None, lam_max=None, region=No
                 label="óptimo")
         ax.set_xlabel(P2L)
         ax.set_ylabel(P1L)
-        ax.set_title(NAME[m])
         ax.legend(loc="upper left", fontsize=10, frameon=True, framealpha=0.6, facecolor="white", edgecolor="none")
         cb = fig.colorbar(im, ax=ax)
         cb.set_label(LABEL[m])
-    fig.suptitle("Calibración poblacional: error en la grilla uniforme (A, λ)")
     fig.tight_layout()
     _save(fig, out, "poblacional_superficie_heatmap")
 
@@ -75,10 +75,9 @@ def surface_heatmaps(pop, opt, out: Path, baseline=None, lam_max=None, region=No
         Z = pop.pivot(index="A", columns="lam", values=m).loc[A, lam].values
         ax.plot_surface(X, Y, Z, cmap="viridis_r", linewidth=0, antialiased=True, alpha=0.95)
         ax.scatter([opt[m]["lam"]], [opt[m]["A"]], [opt[m]["value"]], color="red", s=60, label="óptimo")
-        ax.set_xlabel("λ [m]")
-        ax.set_ylabel("A [m]")
+        ax.set_xlabel(P2L)
+        ax.set_ylabel(P1L)
         ax.set_zlabel(LABEL[m])
-        ax.set_title(NAME[m])
         ax.legend()
         ax.view_init(28, -125)
     _save(fig, out, "poblacional_superficie_3d")
@@ -91,25 +90,25 @@ def cuts(pop, opt, out: Path, baseline=None):
         o = opt[m]
         a = pop[np.isclose(pop.lam, o["lam"])].sort_values("A")
         ax = axs[r, 0]
-        ax.errorbar(a.A, a[m], yerr=a[m + "_sem"], marker="o", ms=4, capsize=3, color=C[m], label=f"λ = {o['lam']:g} m fijo")
+        ax.errorbar(a.A, a[m], yerr=a[m + "_sem"], marker="o", ms=4, capsize=3, color=C[m], label=r"$\lambda$ fijo")
         ax.axvline(o["A"], color="k", ls=":", lw=1)
         if baseline is not None:
             ax.axhline(baseline[m], color="gray", ls="--", lw=1, label="sin elusión")
         ax.set_xlabel(P1L)
         ax.set_ylabel(LABEL[m])
-        ax.set_title(f"{NAME[m]}: corte en A")
         ax.legend(loc="best")
         b = pop[np.isclose(pop.A, o["A"])].sort_values("lam")
         ax = axs[r, 1]
-        ax.errorbar(b.lam, b[m], yerr=b[m + "_sem"], marker="o", ms=4, capsize=3, color=C[m], label=f"A = {o['A']:g} m fijo")
+        ax.errorbar(b.lam, b[m], yerr=b[m + "_sem"], marker="o", ms=4, capsize=3, color=C[m], label=r"$A$ fijo")
         ax.axvline(o["lam"], color="k", ls=":", lw=1)
         if baseline is not None:
             ax.axhline(baseline[m], color="gray", ls="--", lw=1, label="sin elusión")
         ax.set_xlabel(P2L)
         ax.set_ylabel(LABEL[m])
-        ax.set_title(f"{NAME[m]}: corte en λ")
-        ax.legend(loc="best")
-    fig.suptitle("Cortes 1D por el óptimo; barras = error estándar entre eventos (σ/√M)")
+        y0, y1 = ax.get_ylim()
+        yb = (baseline[m] if baseline is not None else y1) - 0.02 * (y1 - y0)
+        ax.legend(loc="upper right", bbox_to_anchor=(1.0, yb), bbox_transform=ax.get_yaxis_transform(),
+                  handlelength=0.8, handletextpad=0.4, borderpad=0.2, borderaxespad=0.05)   # debajo de la linea "sin elusion", a la derecha de la punteada del optimo   # a la derecha de la linea punteada del optimo
     fig.tight_layout()
     _save(fig, out, "poblacional_cortes")
 
@@ -122,23 +121,28 @@ def individual_params(ind, opt, out: Path):
     a_lo, a_hi = ind.A_opt.min(), ind.A_opt.max()
     a_w = (a_hi - a_lo) / 10                              # ancho de clase comun; clases centradas en los valores
     a_bins = a_lo - a_w / 2 + a_w * np.arange(11 + 1)
+    # columna de lam: tambien misma escala y mismas clases (ancho 1 m, centradas en los valores enteros de la grilla)
+    l_lo, l_hi = int(ind.lam_opt.min()), int(ind.lam_opt.max())
+    l_bins = np.arange(l_lo, l_hi + 2) - 0.5
+    axs[1, 1].sharey(axs[0, 1])
     for r, m in enumerate(("E1", "E2")):
         d = ind[ind.metric == m]
         for c, (col, lab, key) in enumerate((("A_opt", P1L, "A"), ("lam_opt", P2L, "lam"))):
             ax = axs[r, c]
-            ax.hist(d[col], bins=a_bins if c == 0 else 12, color=C[m], alpha=0.75, edgecolor="white")
+            ax.hist(d[col], bins=a_bins if c == 0 else l_bins, color=C[m], alpha=0.75, edgecolor="white")
             if c == 0:
                 ax.set_xlim(a_bins[0] - a_w, a_bins[-1] + a_w)
+            else:
+                ax.set_xlim(l_bins[0] - 1, l_bins[-1] + 1)
             mu, sd = d[col].mean(), d[col].std()          # desvio estandar muestral (ddof = 1) sobre los 19 eventos
             ax.axvspan(mu - sd, mu + sd, color=C[m], alpha=0.18, lw=0)
             ax.axvline(mu, color=C[m], lw=2, ls="--", label="promedio individual")
             ax.axvline(opt[m][key], color="k", lw=2, label="valor poblacional")
             ax.set_xlabel(lab)
             ax.set_ylabel("eventos")
-            ax.set_title(f"{NAME[m]}: {key if key == 'A' else 'λ'} óptimo individual", fontsize=10)
             ax.margins(y=0.25)
             ax.yaxis.set_major_locator(plt.MaxNLocator(integer=True))     # cuentas de eventos: solo enteros
-            ax.legend(loc="upper left" if c == 0 else "upper right", fontsize=8.5)
+            ax.legend(loc="upper left", fontsize=8.5)
     fig.tight_layout()
     _save(fig, out, "individual_parametros")
 
@@ -159,9 +163,8 @@ def individual_errors(ind, out: Path):
         ax.axvline(mu, color=C[m], lw=2, ls="--", label="promedio")
         ax.axvline(1.0, color="k", lw=1.5, label="valor poblacional")
         ax.set_xlim(lo - 2 * w, 1.0 + 0.6 * max(w, 0.02))
-        ax.set_xlabel("$E_m$ individual / $E_m$ poblacional (menor que 1 = mejora)")
+        ax.set_xlabel(rf"$E^{{{EK[m]}}}_{{\mathrm{{ind}}}}\,/\,E^{{{EK[m]}}}_{{\mathrm{{pob}}}}$")
         ax.set_ylabel("eventos")
-        ax.set_title(NAME[m], fontsize=11)
         ax.margins(y=0.3)
         ax.legend(loc="upper left", fontsize=8.5)
     fig.tight_layout()
@@ -179,13 +182,10 @@ def cv_plot(cv, cvs, out: Path):
             p.set_facecolor(C[m])
             p.set_alpha(0.5)
         v = cvs[cvs.metric == m].E_pop_all_events.iloc[0]
-        ax.axhline(v, color="k", ls="--", lw=1, label=f"⟨E⟩ poblacional (b) = {v:.3f}")
-        ax.set_ylabel("error medio [m²]")
-        ax.set_title(f"{NAME[m]} ({len(d)} particiones)")
+        ax.axhline(v, color="k", ls="--", lw=1, label=rf"$\langle E^{{{EK[m]}}}\rangle$ poblacional = {v:.3f}")
+        ax.set_ylabel(LABEL[m])
         ax.legend(loc="upper left")
     fig.tight_layout()
-    fig.text(0.5, -0.01, "caja: cuartiles 25-75 %, línea naranja: mediana, bigotes: hasta 1,5 × IQR (no se muestran valores atípicos)",
-             ha="center", va="top", fontsize=8, color="gray")
     _save(fig, out, "validacion_cruzada")
 
 
@@ -203,18 +203,15 @@ def event_overlay(event, run, out: Path, name: str):
         ax.plot(ex.x[0], ex.y[0], "s", color="k")
         ax.plot(ex.x[-1], ex.y[-1], "*", color="k", ms=10)
     ax.set_aspect("equal", adjustable="datalim")
-    ax.set_xlabel("x [m]")
-    ax.set_ylabel("y [m]")
-    ax.set_title(f"Evento {event.event_id}: A = {run.A:g} m, λ = {run.lam:g} m (■ inicio, ★ target final); "
-                 "el simulado se muestra hasta que llega al target")
+    ax.set_xlabel(r"$x$ (m)")
+    ax.set_ylabel(r"$y$ (m)")
     ax.legend(fontsize=8)
     ax = axs[1]
     for k, (aid, ex) in enumerate(event.agents.items()):
         sx, sy = sim_at_experimental_frames(ex, run.agents[aid])
         ax.plot(ex.t, (ex.x - sx) ** 2 + (ex.y - sy) ** 2, color=C["sim"] if k == 0 else C["E2"], label=f"peatón {aid}")
-    ax.set_xlabel("t [s]")
-    ax.set_ylabel(r"$|r_{exp}(t_k)-r_{sim}(t_k)|^2$ [m$^2$]")
-    ax.set_title("Observable primario: error instantáneo (integrando de la Métrica 1)")
+    ax.set_xlabel(r"$t$ (s)")
+    ax.set_ylabel(r"$|\mathbf{r}_{exp}(t_k)-\mathbf{r}_{sim}(t_k)|^2$ (m$^2$)")
     ax.legend()
     ax = axs[2]
     a, b = [event.agents[i] for i in event.agents]
@@ -226,9 +223,8 @@ def event_overlay(event, run, out: Path, name: str):
     ax.plot(sa.t, np.hypot(sa.x - sb.x, sa.y - sb.y), color=C["sim"], label="simulado")
     ax.axhline(0.5, color="gray", ls="--", lw=1, label="contacto (2r = 0.5 m)")
     ax.axvline(a.t[-1], color="k", ls=":", lw=1, label="fin del evento experimental")
-    ax.set_xlabel("t [s]")
-    ax.set_ylabel("distancia entre peatones [m]")
-    ax.set_title("Distancia relativa")
+    ax.set_xlabel(r"$t$ (s)")
+    ax.set_ylabel(r"$d$ (m)")
     ax.legend()
     fig.tight_layout()
     _save(fig, out, name)
@@ -249,20 +245,19 @@ def region_trajectories(events, runs, pairs, opt, m, out: Path, name: str):
                 run = runs[(ev.event_id, float(pr.A), float(pr.lam))]
                 sm = run.agents[aid]
                 ax.plot(sm.x, sm.y, "-", lw=0.8, color=C[m], alpha=0.25,
-                        label=f"simulado, {len(pairs)} pares de la región óptima" if (k == 0 and pr.Index == pairs.index[0]) else None)
+                        label=f"simulado, {len(pairs)} pares de la región óptima ({SHORT[m]})" if (k == 0 and pr.Index == pairs.index[0]) else None)
             so = runs[(ev.event_id, *o)].agents[aid]
-            ax.plot(so.x, so.y, "-", lw=2.0, color="k", label=f"simulado con el óptimo (A = {o[0]:g}, λ = {o[1]:g})" if k == 0 else None)
+            ax.plot(so.x, so.y, "-", lw=2.0, color="k", label=rf"simulado con el óptimo ($A$ = {o[0]:g} m, $\lambda$ = {o[1]:g} m)" if k == 0 else None)
             ax.plot(ex.x, ex.y, "o", ms=2.5, color=C["exp"], alpha=0.6, label="experimental" if k == 0 else None)
             ax.plot(ex.x[0], ex.y[0], "s", color="k")
             ax.plot(ex.x[-1], ex.y[-1], "*", color="k", ms=10)
-        ax.set_title(f"Evento {ev.event_id}")
+        ax.text(0.02, 0.96, f"Evento {ev.event_id}", transform=ax.transAxes, va="top", ha="left")
         ax.set_aspect("equal", adjustable="datalim")
-        ax.set_xlabel("x [m]")
-        ax.set_ylabel("y [m]")
+        ax.set_xlabel(r"$x$ (m)")
+        ax.set_ylabel(r"$y$ (m)")
     for ax in axs.ravel()[n:]:
         ax.axis("off")
     h, l = axs.ravel()[0].get_legend_handles_labels()
     fig.legend(h, l, loc="lower center", ncol=3, fontsize=9, bbox_to_anchor=(0.5, -0.02))
-    fig.suptitle(f"{NAME[m]}: trayectorias de los pares dentro de 1 error estándar del óptimo (■ inicio, ★ target)")
     fig.tight_layout(rect=(0, 0.04, 1, 1))
     _save(fig, out, name)

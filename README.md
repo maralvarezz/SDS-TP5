@@ -100,8 +100,8 @@ Además, por evento se genera `eventoNN_pares_zona_optima` (sin espacio en el no
   La validación cruzada (ítem d) calibra `(A, λ)` solo con los eventos de entrenamiento.
 - **Óptimo poblacional** (ambas métricas coinciden): `A = 0.15 m, λ = 13 m` (⟨E1⟩ = 0.306 m², ⟨E2⟩ = 0.052 m²). Con `A = 0.15`, ⟨E1⟩ pasa de 0.306 (`λ = 13`) a 0.319 (`λ = 30`).
 - **El valle es muy plano**: para `λ ≳ 10` el error casi no cambia (menos de 1 error estándar ≈ 0.046), y el conjunto de indiferencia (`indifference_set_*.csv`: pares dentro de 1 error estándar del mínimo)
-  tiene 30 pares (E1) y 20 pares (E2), con `A` ∈ [0.15, 0.6] y `λ` ∈ [2, 16]. Con `λ` grande `a(d)` casi no depende de `d` (giro chico y casi constante a la derecha), de modo que los datos
-  **no identifican bien** la dependencia con la distancia. Hay que informar esa región de indiferencia, no solo el mínimo.
+  tiene 30 pares (E1) y 20 pares (E2), con `A` ∈ [0.15, 0.6] y `λ` ∈ [2, 16]. Con `λ` grande `a(d)` casi no depende de `d` (giro chico y casi constante a la derecha).
+  Hay que informar esa región de indiferencia, no solo el mínimo.
 - **Validación física** (ítem 12 de la especificación): la fórmula no evita colisiones por construcción. En el óptimo la distancia mínima centro a centro es ≥ 0.504 m en los 19 eventos (sin solapamiento, 2r = 0.5 m);
   en la grilla completa ~9 % de las corridas tienen solapamiento, casi todas con `A` chica (mediana 0.1 m: la elusión no alcanza para evitar el cruce).
 - La referencia sin elusión da `⟨E1⟩ = 2.21 m²`, `⟨E2⟩ = 1.29 m²` (contra ~0.31 y ~0.053 en los óptimos).
