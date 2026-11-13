@@ -115,46 +115,20 @@ def cuts(pop, opt, out: Path, baseline=None):
 
 
 def individual_params(ind, opt, out: Path):
-    """Distribucion de los parametros optimos individuales. Si lam esta fijo (= optimo poblacional) solo se muestra A."""
+    """Distribucion de los parametros optimos individuales (A y lam) por metrica, con el valor poblacional marcado."""
     _style()
-    lam_fixed = ind.groupby("metric").lam_opt.nunique().max() == 1
-    ncol = 2 if lam_fixed else 3
-    fig, axs = plt.subplots(2, ncol, figsize=(4.8 * ncol + 1, 7))
+    fig, axs = plt.subplots(2, 2, figsize=(10, 7))
     for r, m in enumerate(("E1", "E2")):
-        d = ind[ind.metric == m].sort_values("event_id")
-        ax = axs[r, 0]
-        ax.hist(d.A_opt, bins=np.arange(d.A_opt.min() - 0.025, d.A_opt.max() + 0.06, 0.05) if lam_fixed else 12,
-                color=C[m], alpha=0.75, edgecolor="white")
-        ax.axvline(opt[m]["A"], color="k", lw=2, label=f"valor poblacional (A = {opt[m]['A']:g} m)")
-        ax.set_xlabel(P1L)
-        ax.set_ylabel("eventos")
-        ax.set_title(f"{NAME[m]}: A óptimo individual" + (f" (λ fijo = {opt[m]['lam']:g} m)" if lam_fixed else ""), fontsize=10)
-        ax.margins(y=0.3)
-        ax.legend(loc="upper left", fontsize=8.5)
-        if lam_fixed:
-            ax = axs[r, 1]
-            ax.bar(d.event_id.astype(str), d.A_opt, color=C[m], alpha=0.75)
-            ax.axhline(opt[m]["A"], color="k", lw=2, label="valor poblacional")
-            ax.set_xlabel("evento")
-            ax.set_ylabel(P1L)
-            ax.set_title("A óptimo por evento")
-            ax.margins(y=0.3)
-            ax.legend(loc="upper left", fontsize=8.5, ncol=1)
-        else:
-            ax = axs[r, 1]
-            ax.hist(d.lam_opt, bins=12, color=C[m], alpha=0.75, edgecolor="white")
-            ax.axvline(opt[m]["lam"], color="k", lw=2, label="valor poblacional")
-            ax.set_xlabel(P2L)
+        d = ind[ind.metric == m]
+        for c, (col, lab, key) in enumerate((("A_opt", P1L, "A"), ("lam_opt", P2L, "lam"))):
+            ax = axs[r, c]
+            ax.hist(d[col], bins=12, color=C[m], alpha=0.75, edgecolor="white")
+            ax.axvline(opt[m][key], color="k", lw=2, label="valor poblacional")
+            ax.set_xlabel(lab)
             ax.set_ylabel("eventos")
-            ax.set_title(f"{NAME[m]}: λ óptimo individual")
-            ax.legend()
-            ax = axs[r, 2]
-            ax.scatter(d.lam_opt, d.A_opt, color=C[m], s=36)
-            ax.scatter([opt[m]["lam"]], [opt[m]["A"]], marker="*", s=220, color="k", label="poblacional")
-            ax.set_xlabel(P2L)
-            ax.set_ylabel(P1L)
-            ax.set_title("óptimos individuales")
-            ax.legend()
+            ax.set_title(f"{NAME[m]}: {key if key == 'A' else 'λ'} óptimo individual", fontsize=10)
+            ax.margins(y=0.25)
+            ax.legend(loc="upper left" if c == 0 else "upper right", fontsize=8.5)
     fig.tight_layout()
     _save(fig, out, "individual_parametros")
 

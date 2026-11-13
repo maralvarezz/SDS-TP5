@@ -87,17 +87,17 @@ java -jar simulation/target/sds-tp5.jar export-events --config input/base_config
 último instante experimental** hasta que ambos centros están en su target final (a ≤ 2 cm y con rapidez < 5 cm/s) y se agregan `animation.holdSeconds = 2 s` más, para ver que
 quedan parados en el centro de su destino. Son corridas distintas de las de las métricas (otro `run_id`); las métricas y la calibración **no** las usan (la consigna termina la
 simulación en el último instante experimental, y la Métrica 2 usa todos los puntos simulados). El dato experimental queda congelado en su última posición.
-`python3 viz/run_analysis.py animations --animation-events all` (sin `--offline` la primera vez, porque hay que simular las corridas extendidas; luego se puede usar `--offline`).
+`python3 viz/run_analysis.py animations --animation-events all`.
+Además, por evento se genera `eventoNN_pares_zona_optima` (sin espacio en el nombre): los pares `(A, λ)` de `plots.animationPairs` (todos dentro de 1 error estándar del óptimo para ambas métricas: (0.40, 3), (0.30, 4), (0.25, 5), (0.20, 8), (0.15, 13)) superpuestos con el dato experimental, para mostrar que parámetros distintos de la zona amarilla dan trayectorias casi iguales (sin `--offline` la primera vez, porque hay que simular las corridas extendidas; luego se puede usar `--offline`).
 
 ## Hallazgos de la calibración con la elusión continua (a revisar)
 
 - **Grilla uniforme** (ejes lineales a escala): `A` de 0.05 a 1.5 m en pasos de 0.05 (30 valores) × `λ` de 1 a 30 m en pasos de 1 (30 valores) = 900 combinaciones × 19 eventos.
   Una grilla previa con `λ` hasta 16 m dejaba el mínimo en el borde; se probó hasta `λ = 100 m` y el error **sube** de nuevo, así que el óptimo es interior.
 - **Figuras de la región óptima**: `poblacional_superficie_heatmap.png` muestra solo `λ ≤ 16 m` (`plots.heatmapLambdaMax` en `analysis_config.json`; recorta lo que se dibuja, la calibración usa toda la grilla), con un único punto en el óptimo; `region_optima_trayectorias_E1/E2.png` superpone, en 4 eventos (`plots.regionEvents`), la trayectoria experimental con las simuladas de todos esos pares (corridas extendidas hasta el target).
-- **Calibración individual (ítem c) con λ fijo**: por decisión del equipo, a partir del ítem c se toma un solo `λ` (el óptimo poblacional de cada métrica, `λ = 13 m`) y por evento solo se calibra `A`
-  (`individual.fixLambdaToPopulation` en `analysis_config.json`). El ítem b mantiene la variación de ambos parámetros porque es poblacional. La lectura literal de la consigna (par `(A_m, λ_m)` por evento) se guarda aparte
-  en `individual_calibration_2d.csv`. Con `λ` fijo la ganancia de individualizar es mínima (⟨E1⟩ 0.3058 → 0.3045; ⟨E2⟩ 0.0519 → 0.0510; 16 de 19 eventos eligen `A = 0.15`), contra 0.2987 y 0.0477 con el par libre.
-  La validación cruzada (ítem d) sigue calibrando `(A, λ)` solo con los eventos de entrenamiento, para no filtrar información de los de validación (el `λ` de (b) se eligió con los 19).
+- **Calibración individual (ítem c)**: por evento y por métrica se optimiza el par `(A_m, λ_m)` (ambos libres) sobre la misma grilla y se compara con el óptimo poblacional del ítem b (`A = 0.15 m, λ = 13 m`, igual para ambas métricas).
+  La ganancia al individualizar es chica (⟨E1⟩ 0.3058 → 0.2987; ⟨E2⟩ 0.0519 → 0.0477).
+  La validación cruzada (ítem d) calibra `(A, λ)` solo con los eventos de entrenamiento.
 - **Óptimo poblacional** (ambas métricas coinciden): `A = 0.15 m, λ = 13 m` (⟨E1⟩ = 0.306 m², ⟨E2⟩ = 0.052 m²). Con `A = 0.15`, ⟨E1⟩ pasa de 0.306 (`λ = 13`) a 0.319 (`λ = 30`).
 - **El valle es muy plano**: para `λ ≳ 10` el error casi no cambia (menos de 1 error estándar ≈ 0.046), y el conjunto de indiferencia (`indifference_set_*.csv`: pares dentro de 1 error estándar del mínimo)
   tiene 51 pares (E1) y 34 pares (E2), con `A` ∈ [0.15, 0.6] y `λ` ∈ [2, 30]. Con `λ` grande `a(d)` casi no depende de `d` (giro chico y casi constante a la derecha), de modo que los datos

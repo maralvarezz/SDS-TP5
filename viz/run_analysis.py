@@ -93,11 +93,8 @@ def main():
                                                       "events": ev_ids, "excluded": sorted(excl)})
         for m in ex.METRICS:
             ex.indifference_set(pop, m).to_csv(out / f"indifference_set_{m}.csv", index=False)
-        # item c: lam se fija en el optimo poblacional (item b) y se calibra A por evento; la version literal (A y lam por evento)
-        # se guarda aparte como referencia
-        fix = bool(cfg.get("individual", {}).get("fixLambdaToPopulation", False))
-        ex.individual_calibration(table, opt, fix_lambda=False).to_csv(out / "individual_calibration_2d.csv", index=False)
-        ind = ex.individual_calibration(table, opt, fix_lambda=fix)
+        # item c: (A_m, lam_m) optimo por evento y por metrica, ambos parametros libres; se compara con el poblacional del item b
+        ind = ex.individual_calibration(table, opt)
         ind.to_csv(out / "individual_calibration.csv", index=False)
         ex.individual_summary(ind).to_csv(out / "individual_summary.csv", index=False)
         cvc = cfg["crossValidation"]
@@ -145,6 +142,16 @@ def main():
                 f = animations.animate_event(events[e], run, out / "animations" / f"evento{e:02d}_E1opt",
                                              fmt=cfg["animations"].get("format", "mp4"))
                 print("animacion:", f)
+        # varios pares (A, lam) de la zona de error minimo en una misma animacion (corridas extendidas)
+        pairs = cfg.get("plots", {}).get("animationPairs", [])
+        if pairs:
+            for e in anim_events:
+                if e in ev_ids:
+                    plan = anim_engine.request([(e, float(a_), float(l_)) for a_, l_ in pairs], log=lambda *_: None)
+                    runs = [read_run(store.root / r.path) for r in plan.itertuples()]
+                    f = animations.animate_comparison(events[e], runs, out / "animations" / f"evento{e:02d}_pares_zona_optima",
+                                                      fmt=cfg["animations"].get("format", "mp4"))
+                    print("animacion (pares):", f)
         timing["animations_s"] = time.perf_counter() - t0
     _save_timing(out, timing, store)
 
