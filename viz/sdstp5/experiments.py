@@ -6,6 +6,7 @@ buscan el optimo sobre las MISMAS combinaciones, de modo que las comparaciones s
 from __future__ import annotations
 
 import json
+from math import comb
 from pathlib import Path
 
 import numpy as np
@@ -85,19 +86,30 @@ def individual_summary(ind: pd.DataFrame) -> pd.DataFrame:
 
 
 def cross_validation(table: pd.DataFrame, pop_opt: dict, seed: int, repeats: int, train_fraction: float):
-    """Particiones aleatorias entrenamiento/validacion de EVENTOS. Se calibra solo con entrenamiento
+    """Particiones aleatorias entrenamiento/validacion de EVENTOS, todas DISTINTAS entre si (se redibuja si sale una
+    repetida; error si se piden mas que las C(M, n_train) posibles). Se calibra solo con entrenamiento
     (<E> sobre los eventos de entrenamiento, minimo en la grilla) y se evalua en validacion."""
     events = np.array(sorted(table.event_id.unique()))
     M = len(events)
     n_train = int(round(train_fraction * M))
     if not 1 <= n_train < M:
         raise ValueError("trainFraction deja un conjunto vacio")
+    # una particion queda determinada por su conjunto de entrenamiento (validacion = el resto): hay C(M, n_train) distintas
+    total = comb(M, n_train)
+    if repeats > total:
+        raise ValueError(f"repeats={repeats} supera la cantidad de particiones distintas posibles C({M},{n_train})={total}")
     rng = np.random.default_rng(seed)
+    seen: set[tuple[int, ...]] = set()
     piv = {m: table.pivot_table(index="event_id", columns=["A", "lam"], values=m) for m in METRICS}
     rows, parts = [], []
     for rep in range(repeats):
-        perm = rng.permutation(events)
-        train, val = np.sort(perm[:n_train]), np.sort(perm[n_train:])
+        while True:                                              # sorteo sin reposicion de particiones: se descartan las repetidas
+            perm = rng.permutation(events)
+            train, val = np.sort(perm[:n_train]), np.sort(perm[n_train:])
+            key = tuple(int(x) for x in train)
+            if key not in seen:
+                seen.add(key)
+                break
         parts.append({"repeat": rep, "train": [int(x) for x in train], "validation": [int(x) for x in val]})
         for m in METRICS:
             tr_mean = piv[m].loc[train].mean(axis=0)            # solo entrenamiento

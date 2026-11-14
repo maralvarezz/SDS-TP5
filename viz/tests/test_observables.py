@@ -119,3 +119,13 @@ def test_cross_validation_is_reproducible_and_has_no_leakage():
     a = cv1[cv1.repeat == 0].set_index("metric")[["A_train", "lam_train"]]
     b = cv3[cv3.repeat == 0].set_index("metric")[["A_train", "lam_train"]]
     assert a.equals(b)
+
+
+def test_cross_validation_partitions_are_all_distinct():
+    tab = _table()                                   # 10 eventos, entrenamiento 7 -> C(10,7) = 120 particiones posibles
+    opt = ex.population_optima(ex.population_table(tab))
+    _, parts = ex.cross_validation(tab, opt, seed=3, repeats=120, train_fraction=0.7)   # se piden TODAS: solo funciona sin repetir
+    keys = {tuple(p["train"]) for p in parts}
+    assert len(keys) == 120
+    with pytest.raises(ValueError):
+        ex.cross_validation(tab, opt, seed=3, repeats=121, train_fraction=0.7)
